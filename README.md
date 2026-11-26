@@ -1,0 +1,107 @@
+# Estación TNT Fit · backend y modelos
+
+Proyecto universitario para **TNT GYM**: una estación (quiosco) en la sala identifica al socio por DNI/QR, lo mide
+(peso, grasa, presión, pulso), calcula un **semáforo de salud con reglas fijas (sin IA)** y le genera una rutina ordenada
+para perder el menor tiempo posible. Un panel web del coach recibe alertas.
+
+Este repositorio contiene **solo el backend con los modelos funcionando**. La estación y el panel se hacen después.
+
+```
+tnt-fit/
+  ml/          código del Colab pasado a scripts (datos, entrenamiento, búsqueda A*/Hill Climbing)
+  backend/     API FastAPI (módulos estacion, salud, rutinas, prediccion, coach) + pruebas
+  supabase/    schema.sql (tablas + RLS) y seed.py (3,000 socios simulados)
+  .github/     CI (pytest + ruff) y reentrenamiento mensual
+```
+
+## Instalar
+
+Requiere Python 3.11+ (probado en 3.12).
+
+```bash
+python -m venv .venv
+source .venv/bin/activate          # Windows: .venv\Scripts\activate
+pip install -r backend/requirements.txt     # incluye ml/requirements.txt
+cp .env.example .env                        # y completa lo que uses (todo es opcional para la demo)
+```
+
+`scikit-learn` está fijado en **1.6.1** (la de Colab) para que las cifras coincidan con las del informe.
+
+## Entrenar los modelos
+
+```bash
+python ml/entrenar.py
+```
+
+Genera los datos simulados (semilla 42), entrena los 4 modelos y escribe en `ml/modelos/`:
+`afluencia.joblib`, `abandono.joblib`, `kmeans.joblib` + `kmeans_scaler.joblib`, `meanshift.joblib` + `meanshift_scaler.joblib`
+y `metadata.json` (fecha, versión, métricas y variables de cada modelo). Los `.joblib` no se suben a git: se regeneran
+(CI y `reentrenar.yml` lo hacen).
+
+## Levantar el backend
+
+```bash
+cd backend
+uvicorn app.main:create_app --factory --reload
+# docs interactivas: http://127.0.0.1:8000/docs
+```
+
+- **Sin variables de Supabase** el backend usa un repositorio **en memoria** con los 3,000 socios simulados y una
+  estación piloto; al arrancar imprime su `id` y (si no definiste `DEMO_STATION_KEY`) su `X-Station-Key`.
+- **Con Supabase**: ejecuta `supabase/schema.sql` en el SQL editor, completa `SUPABASE_*` en `.env` y corre
+  `python supabase/seed.py` (imprime la clave de la estación una sola vez).
+- Prueba de humo del flujo completo (sesión → medición → ficha → rutina):
+  `DEMO_STATION_KEY=... ESTACION_ID=... python backend/scripts/demo_flujo.py`
+
+## Pruebas y lint
+
+```bash
+python ml/entrenar.py      # las pruebas necesitan los modelos
+cd backend && pytest -q
+cd .. && ruff check .
+```
+
+## Endpoints (prefijo `/v1`)
+
+| Método y ruta | Quién | Qué hace |
+|---|---|---|
+| `POST /estaciones/{id}/sesiones` | estación | identifica al socio por DNI o QR y abre sesión |
+| `POST /socios/{id}/mediciones` | estación/coach/admin | guarda la medición; Mean-Shift la marca atípica y avisa a mantenimiento |
+| `PUT /socios/{id}/ficha-salud` | estación/coach/admin | PAR-Q+ + semáforo con reglas fijas |
+| `POST /socios/{id}/rutinas/generar` | estación/coach/admin | Random Forest (espera) + A* (orden) respetando el semáforo |
+| `GET /prediccion/espera?hora=&dia=` | estación/coach/admin | espera estimada por máquina |
+| `POST /prediccion/abandono/lote` | admin (cron nocturno) | abandono + K-Means para todos los socios; crea alertas |
+| `GET /coach/alertas`, `GET /coach/rutinas-pendientes`, `POST /coach/rutinas/{id}/aprobar` | coach/admin | panel del coach (cada coach ve solo sus socios) |
+| `GET /ejercicios/{id}/video` | estación/coach/admin/socio | URL firmada de Cloudflare R2, válida 15 min |
+| `GET /salud` | público | health check con la versión de los modelos |
+
+### Semáforo (reglas fijas — `backend/app/core/umbrales.py`)
+
+| Color | Condición | Consecuencia |
+|---|---|---|
+| 🔴 rojo | sistólica ≥ 160 **o** diastólica ≥ 100 **o** pulso en reposo > 100 **o** PAR-Q+ con respuesta crítica (preguntas 1–3) | requiere apto médico; no se genera rutina |
+| 🟡 amarillo | sistólica ≥ 140 **o** diastólica ≥ 90 **o** algún "sí" en PAR-Q+ **o** lesión declarada | rutina con restricciones, queda `pendiente_aprobacion` del coach |
+| 🟢 verde | todo lo demás | rutina activa |
+
+## Qué del Colab entra al sistema y por qué
+
+| Del Colab | ¿Entra? | Dónde | Por qué |
+|---|---|---|---|
+| Script 1 · generación de datos (semilla 42) | solo para entrenar y sembrar la demo | `ml/datos.py` | no hay datos reales todavía; la semilla fija hace reproducibles las cifras |
+| Script 2 · **Random Forest Regressor** de afluencia | **sí** | `ml/entrenar.py`, `prediccion.py`, `rutinas.py` | predice socios en sala por hora → espera por máquina, que es el costo de A* (R² 0.941 vs 0.892 de la regresión lineal) |
+| Script 3 · **A\*** | **sí** | `ml/busqueda.py`, `rutinas.py` | ordena la rutina con el menor tiempo perdido, es óptimo (heurística admisible) y respeta las máquinas excluidas |
+| Script 3 · **Hill Climbing** | solo respaldo | `ml/busqueda.py` | modo offline (`MODO_OFFLINE=true`) o si A* fallara: rápido, casi óptimo |
+| Script 3 · BFS, DFS, costo uniforme | no | — | solo servían para comparar en el informe |
+| Script 4 · **Random Forest Classifier** de abandono | **sí** | `prediccion.py` | riesgo de abandono a 30 días para que el coach llame a tiempo. **Sin `var_grasa_pct`** (dato de salud) |
+| Script 4 · regresión logística, KNN, SVM, árbol, XGBoost | no | — | comparativa del informe; un solo modelo en producción |
+| Script 5.1 · **K-Means k=3** | **sí** | `prediccion.py` | segmenta socios para personalizar mensajes del coach |
+| Script 5.2 · **Mean-Shift** | **sí** | `salud.py` | detecta mediciones atípicas (báscula descalibrada, electrodos sucios) y no las usa |
+| Script 5.2 · DBSCAN | no | — | Mean-Shift lo superó (F1 0.859 vs 0.742) |
+| Regresión lineal, ROI, aprendizaje por refuerzo | no | — | comparativas / fuera de alcance |
+
+Métricas obtenidas vs. Colab: ver `DECISIONES.md`.
+
+## Documentos
+
+- `DECISIONES.md` — decisiones tomadas sin consultar y diferencias con el Colab.
+- `SEGURIDAD.md` — cada medida de seguridad explicada en lenguaje simple.
