@@ -50,6 +50,15 @@ class RepoMemoria:
         f.update(patch)
         return dict(f)
 
+    def update_donde(self, tabla: str, patch: dict, **eq: Any) -> int:
+        """Actualiza TODAS las filas que cumplen el filtro y devuelve cuántas cambió. Sin filtro: ValueError."""
+        if not eq:
+            raise ValueError('update_donde exige al menos un filtro (no se actualiza la tabla completa)')
+        filas = [f for f in self.t.get(tabla, {}).values() if all(f.get(k) == v for k, v in eq.items())]
+        for f in filas:
+            f.update(patch)
+        return len(filas)
+
     def upsert(self, tabla: str, fila: dict, clave: str) -> dict:
         previas = self.find(tabla, **{clave: fila[clave]})
         if previas:
@@ -100,6 +109,14 @@ class RepoSupabase:
                                      headers={'Prefer': 'return=representation'}))
         d = r.json()
         return d[0] if d else None
+
+    def update_donde(self, tabla: str, patch: dict, **eq: Any) -> int:
+        """Un solo PATCH para todas las filas del filtro (el traspaso masivo mueve ~1500 socios). Devuelve cuántas cambió."""
+        if not eq:
+            raise ValueError('update_donde exige al menos un filtro (no se actualiza la tabla completa)')
+        params = {k: f'eq.{str(v).lower() if isinstance(v, bool) else v}' for k, v in eq.items()}
+        r = self._ok(self.http.patch(f'/{tabla}', params=params, json=patch, headers={'Prefer': 'return=representation'}))
+        return len(r.json())
 
     def upsert(self, tabla: str, fila: dict, clave: str) -> dict:
         r = self._ok(self.http.post(f'/{tabla}', params={'on_conflict': clave}, json=fila,

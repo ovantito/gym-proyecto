@@ -2,6 +2,7 @@ import { useState } from 'react'
 import * as api from '../api/cliente'
 import type { RutinaPendiente } from '../api/cliente'
 import { Boton, Estado, Etiqueta, motivoSimple, Tarjeta, Titulo } from '../componentes/ui'
+import { useSesion } from '../estado/sesion'
 import { useCarga } from '../hooks'
 
 function Fila({ r, alResolver }: { r: RutinaPendiente; alResolver: () => void }) {
@@ -90,7 +91,8 @@ function Fila({ r, alResolver }: { r: RutinaPendiente; alResolver: () => void })
 
 export function Aprobar({ clave }: { clave: number }) {
   // se refresca solo cada 5 s: una rutina nueva en la estación aparece sin recargar
-  const carga = useCarga(api.rutinasPendientes, clave, 5000)
+  const { coachVista } = useSesion()
+  const carga = useCarga(() => api.rutinasPendientes(coachVista), `${clave}:${coachVista}`, 5000)
   return (
     <>
       <Titulo titulo="Rutinas por aprobar" sub="Rutinas en amarillo: el socio tiene una restricción (lesión, presión o respuesta en el PAR-Q+). La estación espera tu decisión." />

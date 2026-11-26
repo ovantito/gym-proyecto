@@ -12,6 +12,9 @@ interface Usuario {
 interface Sesion {
   usuario: Usuario | null
   aviso: string | null
+  /** Solo admin: id del coach cuyo panel se está viendo (null = todos). Se pasa como ?coach_id= a los listados. */
+  coachVista: string | null
+  fijarCoachVista: (id: string | null) => void
   entrar: (email: string, password: string) => Promise<void>
   salir: (aviso?: string) => void
 }
@@ -32,6 +35,7 @@ function leer(): Usuario | null {
 export function ProveedorSesion({ children }: { children: ReactNode }) {
   const [usuario, setUsuario] = useState<Usuario | null>(leer)
   const [aviso, setAviso] = useState<string | null>(null)
+  const [coachVista, setCoachVista] = useState<string | null>(null)
 
   const salir = useCallback((msg?: string) => {
     api.fijarToken(null)
@@ -41,6 +45,7 @@ export function ProveedorSesion({ children }: { children: ReactNode }) {
       /* sin storage */
     }
     setUsuario(null)
+    setCoachVista(null)
     setAviso(msg ?? null)
   }, [])
 
@@ -54,6 +59,9 @@ export function ProveedorSesion({ children }: { children: ReactNode }) {
       usuario,
       aviso,
       salir,
+      // un coach nunca ve «como otro»: el backend lo ignoraría, y aquí ni se guarda
+      coachVista: usuario?.rol === 'admin' ? coachVista : null,
+      fijarCoachVista: setCoachVista,
       entrar: async (email, password) => {
         const r = await api.login(email, password) // lanza ErrorApi si falla
         const u = { token: r.token, rol: r.rol, nombre: r.nombre }
@@ -67,7 +75,7 @@ export function ProveedorSesion({ children }: { children: ReactNode }) {
         setUsuario(u)
       },
     }),
-    [usuario, aviso, salir],
+    [usuario, aviso, coachVista, salir],
   )
   return <Ctx.Provider value={valor}>{children}</Ctx.Provider>
 }

@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import * as api from '../api/cliente'
 import type { CambioFicha, FichaSocioOut, Lesion, MedicionSocio } from '../api/cliente'
+import { useSesion } from '../estado/sesion'
 import { Boton, Etiqueta, motivoSimple, Tarjeta, Titulo } from '../componentes/ui'
 
 const LESIONES: { id: Lesion; texto: string }[] = [
@@ -42,6 +43,7 @@ function resumenCambio(c: CambioFicha['cambio']): string[] {
 }
 
 export function Fichas() {
+  const { coachVista } = useSesion()
   const [dni, setDni] = useState('')
   const [buscando, setBuscando] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -53,7 +55,7 @@ export function Fichas() {
     setError(null)
     setDatos(null)
     try {
-      setDatos(await api.buscarFicha(dni))
+      setDatos(await api.buscarFicha(dni, coachVista))
     } catch (err) {
       setError(err instanceof api.ErrorApi ? err.message : 'No se pudo buscar el socio.')
     } finally {

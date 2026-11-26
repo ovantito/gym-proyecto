@@ -96,3 +96,11 @@ porque ya no influye en el abandono simulado. (Con la versión vieja de los dato
   imagen del ticket y se abrió: redirige a R2 y el video se reprodujo (29 s, 720×1280). Los favicon que faltaban daban 404 en consola; se agregó un favicon vacío.
 - **Dependencias:** `backend/requirements.txt` solo tiene lo de producción; pytest y ruff pasaron a `requirements-dev.txt` (el CI usa este). Se validó el build de Render en un entorno limpio.
 - **Render:** el build entrena los modelos (`ml/entrenar.py`) porque los `.joblib` no se versionan. `PYTHON_VERSION=3.12.10` va en `render.yaml` (no es secreto); el resto de variables solo en el panel.
+
+## Asignación de socios a coaches
+
+- **Quién asigna el coach al inscribir:** Caja. Es una integración con el sistema de inscripción y queda fuera del alcance de la demo (aquí los socios nacen con su coach por la semilla).
+- **Quién reasigna:** solo el admin. El coach únicamente ve a SUS socios, y eso se controla en el backend (`_filtro` ignora cualquier `coach_id` que mande un coach) y con RLS en Supabase.
+- **El trabajo pendiente viaja con el socio:** al reasignar, sus alertas sin resolver y sus rutinas por aprobar pasan al coach nuevo; nada queda huérfano. El traspaso masivo (renuncia, vacaciones, licencia) usa un solo UPDATE por tabla, no uno por socio.
+- **Todo queda en un historial auditable:** la tabla `reasignaciones` guarda coach anterior, coach nuevo, motivo, quién lo hizo y fecha; el traspaso masivo comparte un `lote_id`. Un coach desactivado no puede iniciar sesión, y no se puede desactivar a un coach que aún tiene socios.
+- **Ver como coach:** el admin puede abrir el panel de cualquier coach (`?coach_id=`) para cubrirlo si falta, sin cambiar de usuario.

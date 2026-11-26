@@ -1,6 +1,7 @@
 import * as api from '../api/cliente'
 import type { Falla } from '../api/cliente'
 import { Estado, Tarjeta, Titulo } from '../componentes/ui'
+import { useSesion } from '../estado/sesion'
 import { useCarga } from '../hooks'
 
 const FALLA: Record<Falla, { titulo: string; detalle: string }> = {
@@ -10,7 +11,8 @@ const FALLA: Record<Falla, { titulo: string; detalle: string }> = {
 }
 
 export function Mantenimiento({ clave }: { clave: number }) {
-  const carga = useCarga(api.mantenimiento, clave, 10000)
+  const { coachVista } = useSesion()
+  const carga = useCarga(() => api.mantenimiento(coachVista), `${clave}:${coachVista}`, 10000)
   return (
     <>
       <Titulo

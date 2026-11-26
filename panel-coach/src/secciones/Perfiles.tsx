@@ -1,12 +1,14 @@
 import { Bar, BarChart, CartesianGrid, Cell, LabelList, ResponsiveContainer, XAxis, YAxis } from 'recharts'
 import * as api from '../api/cliente'
 import { Estado, PERFILES, Tarjeta, Titulo } from '../componentes/ui'
+import { useSesion } from '../estado/sesion'
 import { useCarga } from '../hooks'
 
 const COLORES = ['#e8873f', '#20a898', '#9fb0cb']
 
 export function Perfiles({ clave }: { clave: number }) {
-  const carga = useCarga(api.perfiles, clave)
+  const { coachVista } = useSesion()
+  const carga = useCarga(() => api.perfiles(coachVista), `${clave}:${coachVista}`)
   return (
     <>
       <Titulo titulo="Perfiles de socio" sub="Los socios se agrupan solos según cómo entrenan (K-Means). Sirve para personalizar el mensaje de cada grupo." />

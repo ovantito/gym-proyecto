@@ -46,7 +46,7 @@ def verificar_password(password: str, sal_hex: str, hash_hex: str) -> bool:
 def login(request: Request, datos: LoginIn):
     cfg, repo = request.app.state.settings, request.app.state.repo
     if cfg.usa_supabase:
-        return _login_supabase(cfg, datos)
+        return _login_supabase(cfg, datos, repo)
     usuarios = repo.find('usuarios', email=datos.email.lower())
     u = usuarios[0] if usuarios else None
     if u is None:   # se hace el mismo trabajo con y sin usuario para no revelar cuál existe
@@ -54,12 +54,25 @@ def login(request: Request, datos: LoginIn):
         raise HTTPException(401, MSG_MALO)
     if not verificar_password(datos.password, u['sal'], u['password_hash']):
         raise HTTPException(401, MSG_MALO)
+    nombre = _validar_coach(repo, u['rol'], u['user_id'], u['nombre'])
     token = jwt.encode({'sub': u['user_id'], 'aud': cfg.jwt_audience, 'exp': int(time.time()) + DURACION_TOKEN_SEG,
                         'app_metadata': {'role': u['rol']}, 'email': u['email']}, cfg.supabase_jwt_secret, algorithm='HS256')
-    return {'token': token, 'rol': u['rol'], 'nombre': u['nombre'], 'expiraEnSeg': DURACION_TOKEN_SEG}
+    return {'token': token, 'rol': u['rol'], 'nombre': nombre, 'expiraEnSeg': DURACION_TOKEN_SEG}
 
 
-def _login_supabase(cfg, datos: LoginIn):
+def _validar_coach(repo, rol: str, user_id: str, nombre_por_defecto: str) -> str:
+    """Un coach desactivado no puede entrar; si existe en la tabla coaches, de ahí sale su nombre."""
+    if rol != 'coach':
+        return nombre_por_defecto
+    c = repo.get('coaches', user_id)
+    if c is None:
+        return nombre_por_defecto
+    if not c['activo']:
+        raise HTTPException(403, 'Tu usuario de coach está desactivado')
+    return c['nombre']
+
+
+def _login_supabase(cfg, datos: LoginIn, repo):
     if not cfg.supabase_publishable_key:
         raise HTTPException(503, 'Falta SUPABASE_PUBLISHABLE_KEY en el servidor')
     try:
@@ -74,4 +87,5 @@ def _login_supabase(cfg, datos: LoginIn):
     actor = decodificar_jwt(token, cfg)   # valida firma y rol
     if actor.rol not in ('coach', 'admin'):
         raise HTTPException(403, 'Este panel es solo para coach y admin')
-    return {'token': token, 'rol': actor.rol, 'nombre': datos.email, 'expiraEnSeg': r.json().get('expires_in', DURACION_TOKEN_SEG)}
+    nombre = _validar_coach(repo, actor.rol, actor.id, datos.email)
+    return {'token': token, 'rol': actor.rol, 'nombre': nombre, 'expiraEnSeg': r.json().get('expires_in', DURACION_TOKEN_SEG)}
