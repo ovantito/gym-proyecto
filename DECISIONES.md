@@ -67,3 +67,23 @@ porque ya no influye en el abandono simulado. (Con la versión vieja de los dato
 - **Estado:** `useReducer` + contexto (`src/estado/flujo.tsx`), sin zustand. Toda llamada HTTP está en `src/api/cliente.ts`.
 - **Backend:** en `ENTORNO=dev` con `CORS_ORIGINS` vacío se permite `http://localhost:5173`; en otro entorno hace falta configurarlo.
 - **Dependencias en versiones actuales** (React 19, Vite 8, Tailwind 4, Vitest 5, ESLint 10, TypeScript 6).
+
+## Panel del coach (`panel-coach/`) y ajustes
+- **Figma:** el límite de llamadas del MCP (plan Starter) se agotó antes de poder leer el frame "07 · Panel del coach (web)" (solo se alcanzó a ver su existencia y tamaño, 1280×860).
+  Se usó la **misma paleta y tipografía de la estación** (azul marino, naranja, Inter) con un layout propio de panel: barra lateral con las 5 secciones y contenido a la derecha.
+  Conviene compararlo con el frame y ajustar si difiere.
+- **Login:** el backend ahora tiene `POST /v1/auth/login`. En demo firma él mismo el JWT (secreto efímero si no hay `SUPABASE_JWT_SECRET`); con Supabase delega en Supabase Auth
+  (necesita `SUPABASE_ANON_KEY`; esa rama **no se probó**). Usuarios demo: `coach@tnt.demo`, `coach2@tnt.demo` (para comprobar el aislamiento) y `admin@tnt.demo`.
+- **"% de abandono" por perfil** = **riesgo medio predicho** (promedio de las probabilidades del Random Forest), porque el abandono real a 30 días aún no se conoce. Se muestra como "riesgo medio de abandono".
+  Requiere haber corrido el análisis nocturno; antes de eso las secciones de riesgo y perfiles muestran un mensaje explicándolo.
+- **"Los 3 datos que más pesan":** son siempre días sin venir, visitas por semana y meses como socio. Cada uno se compara con la **mediana de todos los socios** (±15 %) para decir si sube,
+  baja o no cambia el riesgo. No son valores SHAP del modelo: es una explicación simple y orientativa.
+- **Registrar contacto:** marca la alerta como atendida **y** pone `coach_contacto_30d = 1` en el socio (variable del modelo), para que el siguiente análisis lo tenga en cuenta.
+- **Falla probable (Mean-Shift):** |Δpeso| ≥ 3 kg → báscula; |Δgrasa| ≥ 3 puntos → electrodos; si no, duración (lector trabado). Misma lógica con la que se simularon las fallas.
+  La lectura se asigna a la estación por el `sesion_id` que envía la estación.
+- **Rechazar rutina:** nuevo estado `rechazada` con `motivo_rechazo`; la estación muestra "Acércate a tu coach" y el motivo, y no permite imprimir.
+- **Amarillo en vivo:** la estación consulta `GET /rutinas/{id}` cada 5 s solo mientras la rutina está pendiente; se detiene al cambiar el estado, al salir de la pantalla o por inactividad (60 s).
+  El botón del ticket queda deshabilitado mientras espera. Una rutina verde no espera nada.
+- **QR permanente:** el ticket usa `GET /v1/ejercicios/{id}/ver` (público, 302, 30 peticiones/min). Reemplaza la decisión anterior del QR con URL firmada que caducaba.
+- **Presión alta:** botón "Simular presión alta" = 165/102 con el resto normal; el modelo Mean-Shift no la marca como atípica (hay prueba) y las reglas fijas dan rojo.
+- **Panel sin dependencia de estado global:** `useCarga` (carga + recarga silenciosa cada 5–10 s en Aprobar y Mantenimiento para ver cambios casi en vivo).

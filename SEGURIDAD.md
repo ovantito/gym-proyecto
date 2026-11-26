@@ -56,6 +56,21 @@ calcular nada y se **avisa a mantenimiento**. Así un sensor roto no genera un s
 El **CI** corre `ruff` y `pytest` en cada push y PR (si fallan las pruebas de seguridad, no se mezcla). Las dependencias críticas
 (scikit-learn) están fijadas. Para el reentrenamiento mensual, los modelos nuevos salen como artefacto para revisarlos antes de desplegar.
 
+## 12. Login del panel
+`POST /v1/auth/login` valida correo y contraseña (las contraseñas se guardan con **scrypt + sal**, nunca en claro) y devuelve un JWT de 8 horas.
+Tiene **límite de 5 intentos por minuto** y responde igual si el correo no existe o la contraseña está mal (no revela cuál usuario existe).
+El panel guarda el token en `sessionStorage` (se borra al cerrar la pestaña) y, si el servidor responde 401, cierra la sesión sola.
+Los usuarios demo solo existen en el modo en memoria; con contraseñas aleatorias impresas al arrancar.
+
+## 13. QR permanente: una ruta pública, a propósito
+`GET /v1/ejercicios/{id}/ver` **no pide credenciales** (el que escanea el QR es un socio sin cuenta) y redirige a una URL firmada nueva de 15 minutos.
+Es seguro porque solo sirve videos de ejercicios (nada personal), el `id` tiene un patrón estricto (`E-M-01`) y tiene **límite de peticiones** (30/min por IP).
+El QR del ticket nunca contiene una URL firmada, así que no caduca ni filtra acceso.
+
+## 14. Aprobación de rutinas
+Aprobar o rechazar exige ser el coach **dueño del socio** (o admin). La estación consulta el estado de la rutina (`GET /rutinas/{id}`) solo si tiene
+una sesión abierta con ese socio. Rechazar guarda el motivo, que se muestra en la estación.
+
 ## Pendientes conocidos (fuera de esta fase)
 HTTPS lo pone el despliegue (proxy/hosting). Rotación automática de claves de estación y auditoría de accesos a fichas de salud
 quedan para una siguiente fase.
