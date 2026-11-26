@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import * as api from '../api/cliente'
 import type { RutinaPendiente } from '../api/cliente'
-import { Boton, Estado, Etiqueta, motivoSimple, Tarjeta, Titulo } from '../componentes/ui'
+import { Boton, Estado, Etiqueta, motivoSimple, nombreLesion, Tarjeta, Titulo } from '../componentes/ui'
 import { useCarga } from '../hooks'
 
 function Fila({ r, alResolver }: { r: RutinaPendiente; alResolver: () => void }) {
@@ -36,6 +36,9 @@ function Fila({ r, alResolver }: { r: RutinaPendiente; alResolver: () => void })
             <li key={m}>{motivoSimple(m)}</li>
           ))}
         </ul>
+        {r.lesiones.length > 0 && (
+          <p className="mt-2 text-[14px] text-sem-amarillo">Lesiones: {r.lesiones.map(nombreLesion).join(', ')}</p>
+        )}
         {r.maquinasExcluidas.length > 0 && (
           <p className="mt-2 text-[14px] text-sem-amarillo">Máquinas excluidas: {r.maquinasExcluidas.join(', ')}</p>
         )}

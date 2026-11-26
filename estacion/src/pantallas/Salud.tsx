@@ -5,9 +5,28 @@ import { Boton } from '../componentes/Boton'
 import { Chip } from '../componentes/Chip'
 import { Marco } from '../componentes/Marco'
 import { useFlujo } from '../estado/flujo'
-import { ANIMOS, LESIONES, PREGUNTAS_PARQ } from '../estado/textos'
+import { ANIMOS, LESIONES, nombreLesion, PREGUNTAS_PARQ, type SintomaHoy } from '../estado/textos'
 
-const NOMBRE_LESION: Record<string, string> = { rodilla: 'Rodilla', hombro: 'Hombro', espalda_baja: 'Espalda', cadera: 'Cadera' }
+/** Síntomas de hoy a partir del chip elegido (no se guardan en la ficha permanente). */
+const sintomasDe = (animo: string): SintomaHoy[] => {
+  const a = ANIMOS.find((x) => x.id === animo)
+  return a?.sintoma ? [a.sintoma] : []
+}
+
+function Animos({ animo, alCambiar }: { animo: string; alCambiar: (id: string) => void }) {
+  return (
+    <>
+      <h2 className="mt-6 text-[26px] font-bold">¿Cómo te sientes hoy?</h2>
+      <div className="mt-3 flex flex-wrap gap-3">
+        {ANIMOS.map((a) => (
+          <Chip key={a.id} activo={animo === a.id} onClick={() => alCambiar(a.id)}>
+            {a.texto}
+          </Chip>
+        ))}
+      </div>
+    </>
+  )
+}
 const TEXTO_BLOQUEO = 'Para quitarla, habla con tu coach'
 
 /** Pantalla 3: ficha de salud. Si el socio ya tiene una, primero se le pregunta si sigue igual. */
@@ -26,7 +45,14 @@ export function Salud() {
         cargando={estado.cargando}
         error={estado.error}
         alCerrarError={limpiarError}
-        alSeguirIgual={() => enviarFicha({ parq: previa.parq, lesiones: previa.lesiones })}
+        animo={animo}
+        alCambiarAnimo={setAnimo}
+        alSeguirIgual={() => {
+          const respuestas = [...previa.parq]
+          const a = ANIMOS.find((x) => x.id === animo)
+          if (a?.parq !== null && a?.parq !== undefined) respuestas[a.parq] = true
+          return enviarFicha({ parq: respuestas, lesiones: previa.lesiones, sintomas_hoy: sintomasDe(animo) })
+        }}
         alActualizar={() => setActualizando(true)}
       />
     )
@@ -36,7 +62,7 @@ export function Salud() {
   const parqBloqueada = (i: number) => previa?.parq[i] ?? false
   const opcionesLesion = [
     ...LESIONES.map((l) => ({ id: l.id as string, texto: l.texto as string })),
-    ...(previa?.lesiones ?? []).filter((id) => !LESIONES.some((l) => l.id === id)).map((id) => ({ id, texto: NOMBRE_LESION[id] ?? id })),
+    ...(previa?.lesiones ?? []).filter((id) => !LESIONES.some((l) => l.id === id)).map((id) => ({ id, texto: nombreLesion(id) })),
   ]
 
   const alternar = (id: string) => {
@@ -48,7 +74,7 @@ export function Salud() {
     const respuestas = [...parq]
     const a = ANIMOS.find((x) => x.id === animo)
     if (a?.parq !== null && a?.parq !== undefined) respuestas[a.parq] = true // mareo / dolor de pecho cuentan en el PAR-Q+
-    return enviarFicha({ parq: respuestas, lesiones })
+    return enviarFicha({ parq: respuestas, lesiones, sintomas_hoy: sintomasDe(animo) })
   }
 
   return (
@@ -65,14 +91,7 @@ export function Salud() {
       <div className="grid h-full grid-cols-[0.8fr_1.2fr] gap-8">
         <div>
           <h1 className="text-[44px] font-extrabold">Antes de entrenar</h1>
-          <h2 className="mt-6 text-[26px] font-bold">¿Cómo te sientes hoy?</h2>
-          <div className="mt-3 flex flex-wrap gap-3">
-            {ANIMOS.map((a) => (
-              <Chip key={a.id} activo={animo === a.id} onClick={() => setAnimo(a.id)}>
-                {a.texto}
-              </Chip>
-            ))}
-          </div>
+          <Animos animo={animo} alCambiar={setAnimo} />
           <h2 className="mt-6 text-[26px] font-bold">¿Tienes alguna lesión?</h2>
           <div className="mt-3 flex flex-wrap gap-3">
             {opcionesLesion.map((l) => (
@@ -113,17 +132,19 @@ export function Salud() {
 
 /** «¿Sigues igual que la última vez?»: muestra lo que ya está registrado y deja reutilizarlo o actualizarlo. */
 function Confirmar({
-  previa, cargando, error, alCerrarError, alSeguirIgual, alActualizar,
+  previa, cargando, error, alCerrarError, animo, alCambiarAnimo, alSeguirIgual, alActualizar,
 }: {
   previa: FichaPrevia
   cargando: boolean
   error: string | null
   alCerrarError: () => void
+  animo: string
+  alCambiarAnimo: (id: string) => void
   alSeguirIgual: () => void
   alActualizar: () => void
 }) {
   const registradas = [
-    ...previa.lesiones.map((l) => `Lesión de ${(NOMBRE_LESION[l] ?? l).toLowerCase()}`),
+    ...previa.lesiones.map((l) => `Lesión de ${nombreLesion(l).toLowerCase()}`),
     ...PREGUNTAS_PARQ.filter((_, i) => previa.parq[i]),
   ]
   return (
@@ -154,6 +175,7 @@ function Confirmar({
             </ul>
           )}
         </div>
+        <Animos animo={animo} alCambiar={alCambiarAnimo} />
         {error && (
           <div className="mt-5">
             <Aviso onCerrar={alCerrarError}>{error}</Aviso>

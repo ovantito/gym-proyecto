@@ -39,6 +39,7 @@ export interface RutinaPendiente {
   socioNombre: string
   motivos: string[]
   maquinasExcluidas: string[]
+  lesiones: Lesion[]
 }
 
 export interface Factor {
@@ -99,7 +100,7 @@ export interface LoteOut {
   modelo: string
 }
 
-export type Lesion = 'rodilla' | 'hombro' | 'espalda_baja' | 'cadera'
+export type Lesion = 'rodilla' | 'hombro' | 'espalda_baja' | 'cuello' | 'muneca_codo' | 'tobillo' | 'cadera'
 
 /** Ficha de salud tal como la guarda el backend (salud.py · ficha_publica) */
 export interface FichaSalud {

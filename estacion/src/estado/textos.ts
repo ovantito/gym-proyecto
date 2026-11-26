@@ -11,18 +11,31 @@ export const PREGUNTAS_PARQ = [
   '¿Hay otra razón por la que no deberías hacer actividad física?',
 ]
 
+/** Mismos ids y nombres que backend/app/core/lesiones.py. */
 export const LESIONES = [
   { id: 'rodilla', texto: 'Rodilla' },
   { id: 'hombro', texto: 'Hombro' },
-  { id: 'espalda_baja', texto: 'Espalda' },
+  { id: 'espalda_baja', texto: 'Espalda baja (lumbar)' },
+  { id: 'cuello', texto: 'Cuello (cervical)' },
+  { id: 'muneca_codo', texto: 'Muñeca o codo' },
+  { id: 'tobillo', texto: 'Tobillo' },
+  { id: 'cadera', texto: 'Cadera' },
 ] as const
 
-/** "¿Cómo te sientes hoy?" se traduce a respuestas PAR-Q+ (el backend no tiene otro campo). */
+export const nombreLesion = (id: string) => LESIONES.find((l) => l.id === id)?.texto ?? id
+
+export type SintomaHoy = 'dolor_cabeza' | 'mareo'
+
+/**
+ * "¿Cómo te sientes hoy?". Los síntomas (`sintoma`) dan amarillo SOLO hoy y no se guardan en la ficha permanente.
+ * El dolor de pecho sí cuenta como respuesta del PAR-Q+ (`parq` = índice de la pregunta, desde 0).
+ */
 export const ANIMOS = [
-  { id: 'bien', texto: 'Bien', parq: null },
-  { id: 'cansado', texto: 'Cansado/a', parq: null },
-  { id: 'mareado', texto: 'Mareado/a', parq: 3 }, // pregunta 4 (mareos)
-  { id: 'pecho', texto: 'Dolor en el pecho', parq: 1 }, // pregunta 2 (dolor de pecho al hacer actividad)
+  { id: 'bien', texto: 'Bien', parq: null, sintoma: null },
+  { id: 'cansado', texto: 'Cansado/a', parq: null, sintoma: null },
+  { id: 'dolor_cabeza', texto: 'Dolor de cabeza fuerte', parq: null, sintoma: 'dolor_cabeza' },
+  { id: 'mareo', texto: 'Mareo', parq: null, sintoma: 'mareo' },
+  { id: 'pecho', texto: 'Dolor en el pecho', parq: 1, sintoma: null }, // pregunta 2 (dolor de pecho al hacer actividad)
 ] as const
 
 /** Convierte el motivo técnico del backend en palabras simples. */
@@ -31,7 +44,12 @@ export function motivoSimple(motivo: string): string {
   if (motivo.startsWith('Pulso')) return 'Tu pulso en reposo está muy acelerado.'
   if (motivo.startsWith('PAR-Q+ con respuesta crítica')) return 'Una de tus respuestas sobre el corazón o el pecho necesita revisión médica.'
   if (motivo.startsWith('PAR-Q+')) return 'Marcaste una molestia en el cuestionario.'
-  if (motivo.startsWith('Lesión declarada')) return `Por tu lesión de ${motivo.split(': ')[1] ?? 'tu cuerpo'}, cuidaremos tu rutina.`
+  if (motivo.startsWith('Lesión declarada')) {
+    const nombres = (motivo.split(': ')[1] ?? '').split(', ').filter(Boolean).map((l) => nombreLesion(l).toLowerCase())
+    return `Por tu lesión de ${nombres.join(', ') || 'tu cuerpo'}, cuidaremos tu rutina.`
+  }
+  if (motivo === 'Dolor de cabeza fuerte hoy') return 'Hoy tienes dolor de cabeza fuerte, cuidaremos tu rutina.'
+  if (motivo === 'Mareo hoy') return 'Hoy te sientes mareado/a, cuidaremos tu rutina.'
   return motivo
 }
 

@@ -20,13 +20,11 @@ AMARILLO_PRESION_DIASTOLICA = 90  # mmHg: ... o diastólica >= 90
 # Además: cualquier "sí" en el PAR-Q+ o cualquier lesión declarada => amarillo.
 # Todo lo demás => verde.
 
-# --- Lesión declarada => máquinas que NUNCA se asignan -----------------------
-LESION_MAQUINAS_EXCLUIDAS: dict[str, tuple[str, ...]] = {
-    'rodilla': ('M-02', 'M-03'),          # sentadilla en Smith, hack squat
-    'hombro': ('M-08', 'M-14'),           # press banca, press militar
-    'espalda_baja': ('M-06', 'M-02'),     # peso muerto rumano, sentadilla en Smith
-    'cadera': ('M-05', 'M-06'),           # hip thrust, peso muerto rumano
-}
+# --- Lesión declarada => máquinas que NUNCA se asignan: ver app/core/lesiones.py (con el porqué de cada exclusión)
+from app.core.lesiones import LESION_MAQUINAS_EXCLUIDAS  # noqa: E402,F401
+
+# Síntomas «de hoy» (¿Cómo te sientes hoy?): cambian el semáforo solo de esta visita y NO se guardan en la ficha.
+SINTOMAS_AMARILLO = {'dolor_cabeza': 'Dolor de cabeza fuerte hoy', 'mareo': 'Mareo hoy'}
 
 # --- Rutina por color de semáforo -------------------------------------------
 RUTINA_POR_SEMAFORO = {

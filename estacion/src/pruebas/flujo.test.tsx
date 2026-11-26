@@ -297,7 +297,7 @@ describe('ficha de salud persistente', () => {
     await u.click(screen.getByRole('button', { name: 'Sí, sigo igual' }))
     expect(await screen.findByText(/Amarillo · Entrena con cuidado/)).toBeInTheDocument()
     const put = l.bodies.find((b) => 'parq' in b)
-    expect(put).toEqual({ parq: PREVIA.parq, lesiones: ['rodilla'] })
+    expect(put).toEqual({ parq: PREVIA.parq, lesiones: ['rodilla'], sintomas_hoy: [] })
   })
 
   it('«Actualizar» muestra lo anterior bloqueado: no se puede quitar, pero sí agregar', async () => {
@@ -321,7 +321,7 @@ describe('ficha de salud persistente', () => {
     await u.click(screen.getByRole('button', { name: 'Hombro' })) // agregar sí se puede
     await u.click(screen.getByRole('button', { name: 'Ver mi semáforo' }))
     await screen.findByText(/Amarillo · Entrena con cuidado/)
-    expect(l.bodies.find((b) => 'parq' in b)).toEqual({ parq: PREVIA.parq, lesiones: ['rodilla', 'hombro'] })
+    expect(l.bodies.find((b) => 'parq' in b)).toEqual({ parq: PREVIA.parq, lesiones: ['rodilla', 'hombro'], sintomas_hoy: [] })
   })
 
   it('si el backend responde 409 por quitar una condición, la estación lo muestra y no avanza', async () => {
@@ -333,4 +333,36 @@ describe('ficha de salud persistente', () => {
     expect(await screen.findByText(/No se puede quitar una condición ya registrada/)).toBeInTheDocument()
     expect(screen.getByText('¿Sigues igual que la última vez?')).toBeInTheDocument()
   })
+
+  it('ofrece las 7 lesiones con sus nombres', async () => {
+    instalarBackend()
+    const u = nuevo()
+    render(<App />)
+    await hastaSalud(u)
+    for (const n of ['Rodilla', 'Hombro', 'Espalda baja (lumbar)', 'Cuello (cervical)', 'Muñeca o codo', 'Tobillo', 'Cadera'])
+      expect(await screen.findByRole('button', { name: n })).toBeInTheDocument()
+  })
+
+  it('«Mareo» y «Dolor de cabeza fuerte» se mandan como síntomas de hoy y NO como respuestas del PAR-Q+', async () => {
+    const l = instalarBackend({ ficha: { semaforo: 'amarillo', motivos: ['Mareo hoy'], requiereAptoMedico: false, maquinasExcluidas: [] } })
+    const u = nuevo()
+    render(<App />)
+    await hastaSalud(u)
+    await u.click(await screen.findByRole('button', { name: 'Mareo' }))
+    await u.click(screen.getByRole('button', { name: 'Ver mi semáforo' }))
+    expect(await screen.findByText('• Hoy te sientes mareado/a, cuidaremos tu rutina.')).toBeInTheDocument()
+    expect(l.bodies.find((b) => 'parq' in b)).toEqual({ parq: Array(7).fill(false), lesiones: [], sintomas_hoy: ['mareo'] })
+  })
+
+  it('con ficha previa, «Sí, sigo igual» también permite avisar un síntoma de hoy sin tocar la ficha guardada', async () => {
+    const l = instalarBackend({ previa: PREVIA, ficha: amarilla })
+    const u = nuevo()
+    render(<App />)
+    await hastaSalud(u)
+    await u.click(await screen.findByRole('button', { name: 'Dolor de cabeza fuerte' }))
+    await u.click(screen.getByRole('button', { name: 'Sí, sigo igual' }))
+    await screen.findByText(/Amarillo · Entrena con cuidado/)
+    expect(l.bodies.find((b) => 'parq' in b)).toEqual({ parq: PREVIA.parq, lesiones: ['rodilla'], sintomas_hoy: ['dolor_cabeza'] })
+  })
 })
+

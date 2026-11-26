@@ -8,7 +8,8 @@ const ok = (cuerpo: unknown, status = 200) => new Response(JSON.stringify(cuerpo
 
 const RUTINA = {
   id: 'r-1', socio_id: 's-1', coach_id: 'c-1', semaforo: 'amarillo', estado: 'pendiente_aprobacion', algoritmo: 'a_estrella', costo_min: 8,
-  creada: '2026-11-26T15:00:00+00:00', socioNombre: 'Socio 0011', motivos: ['Lesión declarada: rodilla'], maquinasExcluidas: ['M-02', 'M-03'],
+  creada: '2026-11-26T15:00:00+00:00', socioNombre: 'Socio 0011', motivos: ['Lesión declarada: rodilla, cuello'], maquinasExcluidas: ['M-02', 'M-03', 'M-11', 'M-13', 'M-14'],
+  lesiones: ['rodilla', 'cuello'],
   dias: [{ ejercicios: [{ id: 'E-M-17', nombre: 'Plancha en banco', maquina: 'M-17', series: 2, repeticiones: 10, descansoSeg: 90 }] }],
 }
 const PARQ_NO = [false, false, false, false, false, false, false]
@@ -143,8 +144,9 @@ describe('secciones', () => {
     render(<App />)
     await entrar(u)
     const tarjeta = await screen.findByRole('article', { name: 'Rutina de Socio 0011' })
-    expect(within(tarjeta).getByText('Lesión declarada: rodilla')).toBeInTheDocument()
-    expect(within(tarjeta).getByText(/Máquinas excluidas: M-02, M-03/)).toBeInTheDocument()
+    expect(within(tarjeta).getByText('Lesión declarada: Rodilla, Cuello (cervical)')).toBeInTheDocument()
+    expect(within(tarjeta).getByText('Lesiones: Rodilla, Cuello (cervical)')).toBeInTheDocument()
+    expect(within(tarjeta).getByText(/Máquinas excluidas: M-02, M-03, M-11/)).toBeInTheDocument()
     await u.click(within(tarjeta).getByRole('button', { name: 'Aprobar' }))
     await waitFor(() => expect(l.some((x) => x.ruta === '/coach/rutinas/r-1/aprobar' && x.metodo === 'POST')).toBe(true))
     expect(await screen.findByText(/No hay rutinas por aprobar/)).toBeInTheDocument()
@@ -215,5 +217,24 @@ describe('fichas de salud', () => {
     await u.type(screen.getByLabelText('DNI del socio'), '99999999')
     await u.click(screen.getByRole('button', { name: 'Buscar' }))
     expect(await screen.findByRole('alert')).toHaveTextContent('No encontramos ese DNI entre tus socios')
+  })
+})
+
+describe('lesiones nuevas en el panel', () => {
+  it('Fichas de salud ofrece las 7 lesiones con sus nombres y deja agregar una nueva con motivo', async () => {
+    const l = instalar()
+    const u = userEvent.setup()
+    render(<App />)
+    await entrar(u)
+    await u.click(await screen.findByRole('button', { name: 'Fichas de salud' }))
+    await u.type(screen.getByLabelText('DNI del socio'), '12345678')
+    await u.click(screen.getByRole('button', { name: 'Buscar' }))
+    await screen.findByText('Socio 0009')
+    for (const n of ['Rodilla', 'Hombro', 'Espalda baja (lumbar)', 'Cuello (cervical)', 'Muñeca o codo', 'Tobillo', 'Cadera'])
+      expect(screen.getByLabelText(n)).toBeInTheDocument()
+    await u.click(screen.getByLabelText('Muñeca o codo'))
+    await u.type(screen.getByLabelText('Motivo del cambio'), 'Se lesionó el codo')
+    await u.click(screen.getByRole('button', { name: 'Guardar cambio' }))
+    await waitFor(() => expect(l.find((x) => x.metodo === 'PUT')?.body).toMatchObject({ lesiones: ['rodilla', 'muneca_codo'] }))
   })
 })
