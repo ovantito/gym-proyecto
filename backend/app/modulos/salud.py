@@ -53,12 +53,27 @@ def ultima_medicion_valida(repo, socio_id: str) -> dict | None:
     return max(reversed(ms), key=lambda m: m['fecha']) if ms else None
 
 
-def _aplicar_ficha(repo, socio_id: str, parq, lesiones, sis, dia, pulso) -> dict:
+MOTIVO_BLOQUEO = 'Bloqueado: requiere liberación del coach'
+
+
+def _aplicar_ficha(repo, socio_id: str, parq, lesiones, sis, dia, pulso, permite_desbloqueo: bool = False) -> dict:
+    """Guarda la ficha y el semáforo. Bloqueo por rojo:
+    - un socio que sale en rojo queda bloqueado (bloqueado=true) y SIGUE en rojo aunque una medición nueva salga normal;
+    - solo se desbloquea con `permite_desbloqueo` (liberación o corrección del coach) y si el nuevo cálculo ya no da rojo."""
     color, motivos = calcular_semaforo(sistolica=sis, diastolica=dia, pulso=pulso, parq=parq, lesiones=lesiones)
+    previa = (repo.find('fichas_salud', socio_id=socio_id) or [{}])[0]
+    bloqueado, desde = bool(previa.get('bloqueado')), previa.get('bloqueado_desde')
+    if bloqueado and not (permite_desbloqueo and color != 'rojo'):
+        color = 'rojo'
+        motivos = [*motivos, MOTIVO_BLOQUEO]
+    elif bloqueado:   # liberado por el coach
+        bloqueado, desde = False, None
+    elif color == 'rojo':
+        bloqueado, desde = True, ahora()
     ficha = repo.upsert('fichas_salud', {
         'socio_id': socio_id, 'parq': parq, 'lesiones': lesiones, 'semaforo': color, 'motivos': motivos,
         'maquinas_excluidas': maquinas_excluidas(lesiones), 'requiere_apto_medico': color == 'rojo',
-        'actualizada': ahora()}, 'socio_id')
+        'bloqueado': bloqueado, 'bloqueado_desde': desde, 'actualizada': ahora()}, 'socio_id')
     repo.update('socios', socio_id, {'semaforo': color})
     return ficha
 
@@ -70,13 +85,14 @@ def condiciones_quitadas(previa: dict, parq: list[bool], lesiones: list[str]) ->
     return quitadas
 
 
-def recalcular_ficha(repo, socio_id: str, parq: list[bool], lesiones: list[str], sis=None, dia=None, pulso=None) -> dict:
+def recalcular_ficha(repo, socio_id: str, parq: list[bool], lesiones: list[str], sis=None, dia=None, pulso=None,
+                     permite_desbloqueo: bool = False) -> dict:
     """Guarda la ficha y recalcula el semáforo; lo que no se manda sale de la última medición válida del socio."""
     ult = ultima_medicion_valida(repo, socio_id) or {}
     return _aplicar_ficha(repo, socio_id, parq, lesiones,
                           sis if sis is not None else ult.get('presion_sistolica'),
                           dia if dia is not None else ult.get('presion_diastolica'),
-                          pulso if pulso is not None else ult.get('pulso_reposo'))
+                          pulso if pulso is not None else ult.get('pulso_reposo'), permite_desbloqueo)
 
 
 def _alerta(repo, socio: dict, tipo: str, nivel: str, mensaje: str) -> None:
@@ -117,7 +133,9 @@ def registrar_medicion(request: Request, socio_id: str, m: MedicionIn,
     ficha = repo.find('fichas_salud', socio_id=socio_id)
     if ficha:   # presión y pulso nuevos pueden cambiar el color
         f = ficha[0]
-        _aplicar_ficha(repo, socio_id, f['parq'], f['lesiones'], m.presion_sistolica, m.presion_diastolica, m.pulso_reposo)
+        nueva = _aplicar_ficha(repo, socio_id, f['parq'], f['lesiones'], m.presion_sistolica, m.presion_diastolica, m.pulso_reposo)
+        if nueva['bloqueado'] and not f.get('bloqueado'):   # esta medición lo dejó en rojo: se avisa al coach
+            _alerta(repo, socio, 'semaforo_rojo', 'alta', 'Socio en rojo: bloqueado hasta que un coach lo libere')
     return {'medicionId': fila['id'], 'atipica': False, 'usada': True, 'imc': imc}
 
 
@@ -134,6 +152,7 @@ def ver_ficha(request: Request, socio_id: str, actor: Actor = Depends(requiere('
 def ficha_publica(f: dict) -> dict:
     return {'parq': f['parq'], 'lesiones': f['lesiones'], 'semaforo': f['semaforo'], 'motivos': f['motivos'],
             'requiereAptoMedico': f['requiere_apto_medico'], 'maquinasExcluidas': f['maquinas_excluidas'],
+            'bloqueado': bool(f.get('bloqueado')), 'bloqueadoDesde': f.get('bloqueado_desde'),
             'actualizada': f.get('actualizada')}
 
 
@@ -148,7 +167,7 @@ def guardar_ficha(request: Request, socio_id: str, f: FichaIn,
         if quitadas:
             raise HTTPException(409, 'No se puede quitar una condición ya registrada. Habla con tu coach: ' + ', '.join(quitadas))
     ficha = recalcular_ficha(repo, socio_id, f.parq, f.lesiones, f.presion_sistolica, f.presion_diastolica, f.pulso_reposo)
-    if ficha['semaforo'] == 'rojo':
+    if ficha['semaforo'] == 'rojo' and not (previas and previas[0].get('bloqueado')):   # una sola alerta por bloqueo
         _alerta(repo, socio, 'semaforo_rojo', 'alta', 'Socio en rojo: requiere apto médico antes de entrenar')
     return {'semaforo': ficha['semaforo'], 'motivos': ficha['motivos'], 'requiereAptoMedico': ficha['requiere_apto_medico'],
-            'maquinasExcluidas': ficha['maquinas_excluidas']}
+            'maquinasExcluidas': ficha['maquinas_excluidas'], 'bloqueado': bool(ficha.get('bloqueado'))}

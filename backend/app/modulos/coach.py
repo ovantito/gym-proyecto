@@ -9,8 +9,8 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.core.repositorio import ahora
 from app.core.seguridad import Actor, requiere
-from app.core.umbrales import LESION_MAQUINAS_EXCLUIDAS, PARQ_NUM_PREGUNTAS
-from app.modulos.salud import _alerta, ficha_publica, recalcular_ficha, ultima_medicion_valida
+from app.core.umbrales import LESION_MAQUINAS_EXCLUIDAS, PARQ_CRITICAS, PARQ_NUM_PREGUNTAS
+from app.modulos.salud import _alerta, _aplicar_ficha, ficha_publica, recalcular_ficha, ultima_medicion_valida
 
 router = APIRouter(tags=['coach'])
 
@@ -113,13 +113,45 @@ def corregir_ficha(request: Request, socio_id: str, datos: CorreccionFichaIn, ac
     antes = previas[0]
     if antes['parq'] == datos.parq and sorted(antes['lesiones']) == sorted(datos.lesiones):
         raise HTTPException(409, 'No hay ningún cambio que guardar')
-    nueva = recalcular_ficha(repo, socio_id, datos.parq, datos.lesiones)   # recalcula el semáforo con la última medición
+    # Recalcula con la última medición. Si estaba bloqueado y ya no sale rojo, la corrección cuenta como liberación.
+    nueva = recalcular_ficha(repo, socio_id, datos.parq, datos.lesiones, permite_desbloqueo=True)
     repo.insert('fichas_salud_historial', {
         'socio_id': socio_id, 'motivo': datos.motivo, 'hecho_por': actor.id, 'fecha': ahora(),
-        'cambio': {'antes': {'parq': antes['parq'], 'lesiones': antes['lesiones'], 'semaforo': antes['semaforo']},
-                   'despues': {'parq': nueva['parq'], 'lesiones': nueva['lesiones'], 'semaforo': nueva['semaforo']}}})
+        'cambio': _cambio(antes, nueva)})
     if nueva['semaforo'] == 'rojo' and antes['semaforo'] != 'rojo':
         _alerta(repo, socio, 'semaforo_rojo', 'alta', 'Socio en rojo: requiere apto médico antes de entrenar')
+    if antes.get('bloqueado') and not nueva.get('bloqueado'):
+        _resolver_alertas_rojas(repo, socio_id, actor)
+    return _vista_ficha(repo, repo.get('socios', socio_id))
+
+
+def _cambio(antes: dict, despues: dict) -> dict:
+    def estado(f: dict) -> dict:
+        return {'parq': f['parq'], 'lesiones': f['lesiones'], 'semaforo': f['semaforo'], 'bloqueado': bool(f.get('bloqueado'))}
+    return {'antes': estado(antes), 'despues': estado(despues)}
+
+
+def _resolver_alertas_rojas(repo, socio_id: str, actor: Actor) -> None:
+    for a in repo.find('alertas', tipo='semaforo_rojo', socio_id=socio_id, resuelta=False):
+        repo.update('alertas', a['id'], {'resuelta': True, 'atendida_por': actor.id, 'atendida_en': ahora()})
+
+
+@router.post('/coach/fichas/{socio_id}/liberar')
+def liberar_socio(request: Request, socio_id: str, datos: MotivoIn, actor: Actor = Depends(requiere('coach', 'admin'))):
+    """Libera a un socio bloqueado por semáforo rojo. El coach ya lo evaluó en persona: el color se recalcula SOLO con
+    PAR-Q y lesiones (sin la presión ni el pulso de la última lectura). La próxima medición vuelve a calcular normal."""
+    repo = request.app.state.repo
+    _socio_del_coach(repo, actor, socio_id)
+    previas = repo.find('fichas_salud', socio_id=socio_id)
+    if not previas or not previas[0].get('bloqueado'):
+        raise HTTPException(409, 'El socio no está bloqueado')
+    antes = previas[0]
+    if any(antes['parq'][i - 1] for i in PARQ_CRITICAS):
+        raise HTTPException(409, 'Primero corrige la ficha: tiene una respuesta crítica del PAR-Q')
+    nueva = _aplicar_ficha(repo, socio_id, antes['parq'], antes['lesiones'], None, None, None, permite_desbloqueo=True)
+    repo.insert('fichas_salud_historial', {'socio_id': socio_id, 'motivo': datos.motivo, 'hecho_por': actor.id, 'fecha': ahora(),
+                                           'cambio': _cambio(antes, nueva)})
+    _resolver_alertas_rojas(repo, socio_id, actor)
     return _vista_ficha(repo, repo.get('socios', socio_id))
 
 

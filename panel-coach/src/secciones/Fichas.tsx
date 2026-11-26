@@ -35,6 +35,8 @@ function resumenCambio(c: CambioFicha['cambio']): string[] {
     if (antes.parq[i] && !despues.parq[i]) out.push(`Quitó el «sí» de: ${q}`)
     if (!antes.parq[i] && despues.parq[i]) out.push(`Agregó el «sí» de: ${q}`)
   })
+  if (antes.bloqueado && !despues.bloqueado) out.push('Liberó el bloqueo por semáforo rojo')
+  if (!antes.bloqueado && despues.bloqueado) out.push('Bloqueó por semáforo rojo')
   if (antes.semaforo !== despues.semaforo) out.push(`Semáforo: ${antes.semaforo} → ${despues.semaforo}`)
   return out
 }
@@ -120,6 +122,60 @@ function UltimaMedicion({ m }: { m: MedicionSocio | null | undefined }) {
   )
 }
 
+const MOTIVOS_LIBERAR = ['Lo evalué en persona', 'Presentó apto médico']
+
+/** Aviso rojo + formulario para liberar a un socio bloqueado por semáforo rojo. */
+function Bloqueo({ socioId, desde, alCambiar }: { socioId: string; desde: string | null; alCambiar: (d: FichaSocioOut) => void }) {
+  const [motivo, setMotivo] = useState('')
+  const [ocupado, setOcupado] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const liberar = async (e: FormEvent) => {
+    e.preventDefault()
+    setOcupado(true)
+    setError(null)
+    try {
+      alCambiar(await api.liberarSocio(socioId, motivo.trim()))
+    } catch (err) {
+      setError(err instanceof api.ErrorApi ? err.message : 'No se pudo liberar al socio.')   // el 409 del backend, tal cual
+    } finally {
+      setOcupado(false)
+    }
+  }
+  return (
+    <section aria-label="Socio bloqueado" className="rounded-2xl border border-sem-rojo/60 bg-sem-rojo/10 p-5">
+      <p role="alert" className="text-[17px] font-bold text-[#ffb4b6]">
+        Bloqueado por semáforo rojo{desde ? ` desde ${fecha(desde)}` : ''}. No puede entrenar hasta que lo liberes.
+      </p>
+      <form onSubmit={liberar} aria-label="Liberar socio" className="mt-3">
+        <h3 className="text-[16px] font-bold">Liberar socio</h3>
+        <div className="mt-2 flex flex-wrap gap-2">
+          {MOTIVOS_LIBERAR.map((m) => (
+            <Boton key={m} variante="secundario" onClick={() => setMotivo(m)}>
+              {m}
+            </Boton>
+          ))}
+        </div>
+        <input
+          aria-label="Motivo de la liberación"
+          className="mt-2 w-full rounded-xl border border-borde bg-fondo px-4 py-3 text-[16px] text-texto outline-none focus:border-naranja"
+          maxLength={200}
+          placeholder="Ej.: Lo evalué en persona"
+          value={motivo}
+          onChange={(e) => setMotivo(e.target.value)}
+        />
+        {error && (
+          <p role="alert" className="mt-3 text-[#ffb4b6]">
+            {error}
+          </p>
+        )}
+        <Boton type="submit" disabled={ocupado || motivo.trim().length < 3} className="mt-3">
+          {ocupado ? 'Liberando…' : 'Liberar socio'}
+        </Boton>
+      </form>
+    </section>
+  )
+}
+
 function Detalle({ datos, alCambiar }: { datos: FichaSocioOut; alCambiar: (d: FichaSocioOut) => void }) {
   const { socio, ficha, historial, medicion } = datos
   const [parq, setParq] = useState<boolean[]>(ficha?.parq ?? [])
@@ -169,6 +225,8 @@ function Detalle({ datos, alCambiar }: { datos: FichaSocioOut; alCambiar: (d: Fi
           </ul>
         )}
       </Tarjeta>
+
+      {ficha?.bloqueado && <Bloqueo socioId={socio.id} desde={ficha.bloqueadoDesde} alCambiar={alCambiar} />}
 
       <UltimaMedicion m={medicion} />
 

@@ -3,7 +3,7 @@ import { Boton } from '../componentes/Boton'
 import { Marco } from '../componentes/Marco'
 import { LucesSemaforo } from '../componentes/Semaforo'
 import { useFlujo } from '../estado/flujo'
-import { motivoSimple, SUBTITULO_SEMAFORO, TITULO_SEMAFORO } from '../estado/textos'
+import { MENSAJE_BLOQUEADO, motivoSimple, SUBTITULO_SEMAFORO, TITULO_SEMAFORO } from '../estado/textos'
 
 /** Pantalla 4. Rojo = fin del flujo; verde/amarillo siguen a la rutina. */
 export function PantallaSemaforo() {
@@ -35,7 +35,7 @@ export function PantallaSemaforo() {
         <LucesSemaforo color={ficha.semaforo} />
         <div className="flex-1">
           <h1 className="text-[48px] font-extrabold leading-tight">{TITULO_SEMAFORO[ficha.semaforo]}</h1>
-          <p className="mt-3 text-[28px] font-semibold text-naranja">{SUBTITULO_SEMAFORO[ficha.semaforo]}</p>
+          <p className="mt-3 text-[28px] font-semibold text-naranja">{rojo && ficha.bloqueado ? MENSAJE_BLOQUEADO : SUBTITULO_SEMAFORO[ficha.semaforo]}</p>
           <ul className="mt-5 space-y-2 text-[24px] text-suave">
             {ficha.motivos.map((m) => (
               <li key={m}>• {motivoSimple(m)}</li>
