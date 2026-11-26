@@ -40,3 +40,8 @@ export function lecturaImposible(socioId: string): Lectura {
   const peso = r1(base.peso + 6.5)
   return { ...base, peso, musculo: r1(peso * (1 - base.grasa / 100) * 0.53) }
 }
+
+/** Presión alta (165/102): lectura normal en todo lo demás; las reglas fijas del backend dan semáforo rojo. */
+export function lecturaPresionAlta(socioId: string): Lectura {
+  return { ...lecturaNormal(socioId), sistolica: 165, diastolica: 102 }
+}

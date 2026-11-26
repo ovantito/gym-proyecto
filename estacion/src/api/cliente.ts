@@ -28,6 +28,8 @@ export interface FichaOut {
   maquinasExcluidas: string[]
 }
 
+export type EstadoRutina = 'activa' | 'pendiente_aprobacion' | 'rechazada' | 'requiere_apto_medico'
+
 export interface Ejercicio {
   id: string // "E-M-17"
   nombre: string
@@ -42,7 +44,7 @@ export interface RutinaOut {
   rutinaId: string | null
   semaforo: Semaforo
   dias: { ejercicios: Ejercicio[] }[]
-  estado: 'activa' | 'pendiente_aprobacion' | 'requiere_apto_medico'
+  estado: EstadoRutina
   alertas: string[]
   detalle?: { algoritmo: 'a_estrella' | 'hill_climbing'; tiempoPerdidoEstimadoMin: number; sociosEnSala: number }
 }
@@ -53,6 +55,13 @@ export interface EsperaOut {
   dia: number
   sociosEnSala: number
   esperaMin: Record<string, number>
+}
+
+/** GET /v1/rutinas/{id}  (rutinas.py) — la estación lo consulta mientras espera al coach */
+export interface EstadoRutinaOut {
+  rutinaId: string
+  estado: EstadoRutina | 'archivada'
+  motivoRechazo: string | null
 }
 
 /** GET /v1/ejercicios/{id}/video  (rutinas.py) */
@@ -171,3 +180,9 @@ export const obtenerEspera = (hora?: number, dia?: number) => {
 
 export const obtenerVideo = (ejercicioId: string) =>
   pedir<VideoOut>('GET', `/ejercicios/${encodeURIComponent(ejercicioId)}/video`)
+
+export const obtenerEstadoRutina = (rutinaId: string) =>
+  pedir<EstadoRutinaOut>('GET', `/rutinas/${encodeURIComponent(rutinaId)}`)
+
+/** Ruta PÚBLICA y permanente (302 a una URL firmada nueva). Es lo que lleva el QR del ticket. */
+export const urlVideoPermanente = (ejercicioId: string) => `${BASE || location.origin}/v1/ejercicios/${encodeURIComponent(ejercicioId)}/ver`

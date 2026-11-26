@@ -2,7 +2,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useReducer, useRef, type ReactNode } from 'react'
 import * as api from '../api/cliente'
 import type { FichaIn, FichaOut, RutinaOut, Semaforo } from '../api/cliente'
-import { lecturaImposible, lecturaNormal, type Lectura } from './simulador'
+import { lecturaImposible, lecturaNormal, lecturaPresionAlta, type Lectura } from './simulador'
 
 export type Pantalla = 'identificacion' | 'medicion' | 'salud' | 'semaforo' | 'rutina' | 'ticket'
 
@@ -18,6 +18,8 @@ export interface Estado {
   medicionValida: boolean
   ficha: FichaOut | null
   rutina: RutinaOut | null
+  /** motivo escrito por el coach si rechazó la rutina */
+  motivoRechazo: string | null
   espera: Record<string, number>
 }
 
@@ -32,6 +34,7 @@ export const estadoInicial: Estado = {
   medicionValida: false,
   ficha: null,
   rutina: null,
+  motivoRechazo: null,
   espera: {},
 }
 
@@ -45,6 +48,7 @@ type Accion =
   | { t: 'ir'; pantalla: Pantalla }
   | { t: 'ficha'; ficha: FichaOut }
   | { t: 'rutina'; rutina: RutinaOut; espera: Record<string, number> }
+  | { t: 'estado_rutina'; estado: RutinaOut['estado']; motivo: string | null }
   | { t: 'reiniciar' }
 
 export function reducer(e: Estado, a: Accion): Estado {
@@ -67,6 +71,8 @@ export function reducer(e: Estado, a: Accion): Estado {
       return { ...e, cargando: false, ficha: a.ficha, pantalla: 'semaforo' }
     case 'rutina':
       return { ...e, cargando: false, rutina: a.rutina, espera: a.espera, pantalla: 'rutina' }
+    case 'estado_rutina':
+      return e.rutina ? { ...e, rutina: { ...e.rutina, estado: a.estado }, motivoRechazo: a.motivo } : e
     case 'reiniciar':
       return estadoInicial // borra TODOS los datos del socio de la memoria
   }
@@ -75,10 +81,12 @@ export function reducer(e: Estado, a: Accion): Estado {
 interface Flujo {
   estado: Estado
   identificar: (dni: string) => Promise<void>
-  medir: (imposible?: boolean) => Promise<void>
+  medir: (tipo?: 'normal' | 'imposible' | 'presion_alta') => Promise<void>
   irA: (p: Pantalla) => void
   enviarFicha: (f: FichaIn) => Promise<void>
   verRutina: () => Promise<void>
+  /** Consulta silenciosa del estado de la rutina (aprobada / rechazada por el coach). */
+  consultarRutina: () => Promise<void>
   limpiarError: () => void
   reiniciar: () => void
 }
@@ -115,7 +123,8 @@ export function ProveedorFlujo({ children }: { children: ReactNode }) {
           const r = await api.abrirSesion({ dni })
           if (vigente(g)) dispatch({ t: 'sesion', sesionId: r.sesionId, socio: r.socio })
         }),
-      medir: async (imposible = false) => {
+      medir: async (tipo = 'normal') => {
+        const imposible = tipo === 'imposible'
         const { socio, sesionId } = ref.current
         if (!socio) return
         const g = generacion.current
@@ -124,7 +133,8 @@ export function ProveedorFlujo({ children }: { children: ReactNode }) {
             peso_kg: l.peso, grasa_pct: l.grasa, presion_sistolica: l.sistolica,
             presion_diastolica: l.diastolica, pulso_reposo: l.pulso, ...(sesionId ? { sesion_id: sesionId } : {}),
           })
-        const lectura = imposible ? lecturaImposible(socio.id) : lecturaNormal(socio.id)
+        const lectura =
+          tipo === 'imposible' ? lecturaImposible(socio.id) : tipo === 'presion_alta' ? lecturaPresionAlta(socio.id) : lecturaNormal(socio.id)
         dispatch({ t: 'lectura', lectura })
         try {
           // El backend compara contra la última lectura VÁLIDA: para que el salto se note, primero
@@ -151,6 +161,18 @@ export function ProveedorFlujo({ children }: { children: ReactNode }) {
           const espera = await api.obtenerEspera().then((x) => x.esperaMin).catch(() => ({}))
           if (vigente(g)) dispatch({ t: 'rutina', rutina, espera })
         }),
+      consultarRutina: async () => {
+        const g = generacion.current
+        const id = ref.current.rutina?.rutinaId
+        if (!id) return
+        try {
+          const r = await api.obtenerEstadoRutina(id)
+          if (vigente(g) && r.estado !== 'archivada' && r.estado !== ref.current.rutina?.estado)
+            dispatch({ t: 'estado_rutina', estado: r.estado, motivo: r.motivoRechazo })
+        } catch {
+          /* sin red por un momento: se vuelve a intentar en 5 s */
+        }
+      },
       limpiarError: () => dispatch({ t: 'limpiar_error' }),
       reiniciar: () => {
         generacion.current++

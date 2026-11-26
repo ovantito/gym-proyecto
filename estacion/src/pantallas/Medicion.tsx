@@ -23,11 +23,14 @@ export function Medicion() {
       paso={2}
       pie={
         <>
-          <Boton variante="secundario" disabled={estado.cargando} onClick={() => medir(false)}>
+          <Boton variante="secundario" className="!px-5 !text-[21px]" disabled={estado.cargando} onClick={() => medir('normal')}>
             Simular báscula
           </Boton>
-          <Boton variante="secundario" disabled={estado.cargando} onClick={() => medir(true)}>
+          <Boton variante="secundario" className="!px-5 !text-[21px]" disabled={estado.cargando} onClick={() => medir('imposible')}>
             Simular lectura imposible
+          </Boton>
+          <Boton variante="secundario" className="!px-5 !text-[21px]" disabled={estado.cargando} onClick={() => medir('presion_alta')}>
+            Simular presión alta
           </Boton>
           <Boton className="ml-auto" disabled={!estado.medicionValida || estado.cargando} onClick={() => irA('salud')}>
             Continuar

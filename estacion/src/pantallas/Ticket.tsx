@@ -1,6 +1,6 @@
 import QRCode from 'qrcode'
 import { useEffect, useState } from 'react'
-import { obtenerVideo, type RutinaOut } from '../api/cliente'
+import { urlVideoPermanente, type RutinaOut } from '../api/cliente'
 import { Boton } from '../componentes/Boton'
 import { Marco } from '../componentes/Marco'
 import { useFlujo } from '../estado/flujo'
@@ -29,7 +29,7 @@ function TicketContenido({ rutina, nombre, qr }: { rutina: RutinaOut; nombre: st
       {qr ? (
         <>
           <div dangerouslySetInnerHTML={{ __html: qr }} aria-label="Código QR" role="img" />
-          <p>Escanea: video del 1er ejercicio (vence en 15 min)</p>
+          <p>Escanea: video del 1er ejercicio</p>
         </>
       ) : (
         <p>Videos no disponibles por ahora.</p>
@@ -48,10 +48,10 @@ export function Ticket() {
   useEffect(() => {
     if (!primero) return
     let vivo = true
-    obtenerVideo(primero)
-      .then((v) => QRCode.toString(v.url, { type: 'svg', margin: 1, errorCorrectionLevel: 'L' }))
+    // El QR apunta a la ruta pública y permanente del backend (/ejercicios/{id}/ver), que firma una URL nueva al abrirse.
+    QRCode.toString(urlVideoPermanente(primero), { type: 'svg', margin: 1, errorCorrectionLevel: 'M' })
       .then((svg) => vivo && setQr(svg))
-      .catch(() => vivo && setQr(null)) // sin video: el ticket sale igual, sin QR
+      .catch(() => vivo && setQr(null))
     return () => {
       vivo = false
     }
