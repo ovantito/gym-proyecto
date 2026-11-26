@@ -39,7 +39,10 @@ class Settings(BaseSettings):
 
     @property
     def origenes_cors(self) -> list[str]:
-        return [o.strip() for o in self.cors_origins.split(',') if o.strip()]
+        lista = [o.strip() for o in self.cors_origins.split(',') if o.strip()]
+        if not lista and self.entorno == 'dev':   # desarrollo: la app de la estación (Vite)
+            return ['http://localhost:5173', 'http://127.0.0.1:5173']
+        return lista
 
     @property
     def usa_supabase(self) -> bool:

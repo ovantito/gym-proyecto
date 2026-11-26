@@ -147,3 +147,12 @@ def test_video_url_firmada_15_min(client, est_headers):
 def test_health_con_version_de_modelos(client):
     j = client.get('/v1/salud').json()
     assert j['estado'] == 'ok' and j['modelos']['version'] and len(j['modelos']['cargados']) == 4
+
+
+def test_cors_permite_la_estacion_en_desarrollo_y_bloquea_otros(client):
+    pedido = {'Access-Control-Request-Method': 'POST', 'Access-Control-Request-Headers': 'x-station-key,content-type'}
+    ok = client.options('/v1/salud', headers={'Origin': 'http://localhost:5173', **pedido})
+    assert ok.headers.get('access-control-allow-origin') == 'http://localhost:5173'
+    assert 'x-station-key' in ok.headers.get('access-control-allow-headers', '').lower()
+    malo = client.options('/v1/salud', headers={'Origin': 'https://sitio-malo.example', **pedido})
+    assert 'access-control-allow-origin' not in malo.headers
