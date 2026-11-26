@@ -1,0 +1,35 @@
+# Blueprint de Render para el backend (plan gratis).
+# Los valores de las variables NO van aquí: se cargan en el panel de Render (Environment). `sync: false` = "pídelas en el panel".
+services:
+  - type: web
+    name: tnt-fit-backend
+    runtime: python
+    plan: free
+    branch: main
+    autoDeploy: true
+    healthCheckPath: /v1/salud
+    # Instala dependencias y entrena los 4 modelos (los .joblib no se versionan; se generan en cada build).
+    buildCommand: pip install -r backend/requirements.txt && python ml/entrenar.py
+    # --proxy-headers: detrás del proxy de Render, el límite de peticiones debe contar la IP real del cliente.
+    startCommand: cd backend && uvicorn app.main:create_app --factory --host 0.0.0.0 --port $PORT --proxy-headers --forwarded-allow-ips='*'
+    envVars:
+      - key: PYTHON_VERSION   # no es un secreto; fija la versión con la que se probó
+        value: 3.12.10
+      - key: ENTORNO
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_PUBLISHABLE_KEY
+        sync: false
+      - key: SUPABASE_SECRET_KEY
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false
+      - key: R2_ACCOUNT_ID
+        sync: false
+      - key: R2_ACCESS_KEY_ID
+        sync: false
+      - key: R2_SECRET_ACCESS_KEY
+        sync: false
+      - key: R2_BUCKET
+        sync: false
