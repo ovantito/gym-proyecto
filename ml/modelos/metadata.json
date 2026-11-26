@@ -1,6 +1,6 @@
 {
   "version": "1.0.0",
-  "fecha_entrenamiento": "2026-11-26T14:21:14+00:00",
+  "fecha_entrenamiento": "2026-11-26T14:35:41+00:00",
   "semilla": 42,
   "scikit_learn": "1.6.1",
   "numpy": "2.5.5",
@@ -33,34 +33,34 @@
       "semaforo"
     ],
     "metricas": {
-      "f1": 0.593,
-      "roc_auc": 0.914,
-      "precision": 0.528,
-      "recall": 0.677,
+      "f1": 0.59,
+      "roc_auc": 0.918,
+      "precision": 0.504,
+      "recall": 0.713,
       "matriz_confusion": [
         [
-          591,
-          60
+          590,
+          66
         ],
         [
-          32,
+          27,
           67
         ]
       ]
     },
     "metricas_referencia_colab_con_var_grasa_pct": {
-      "f1": 0.62,
-      "roc_auc": 0.926,
-      "precision": 0.573,
-      "recall": 0.677,
+      "f1": 0.587,
+      "roc_auc": 0.916,
+      "precision": 0.504,
+      "recall": 0.702,
       "matriz_confusion": [
         [
-          601,
-          50
+          591,
+          65
         ],
         [
-          32,
-          67
+          28,
+          66
         ]
       ]
     }

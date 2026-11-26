@@ -3,29 +3,24 @@
 Tomadas sin consultar, siempre eligiendo la opción más simple.
 
 ## Fuente del Colab
-- El archivo `TNT_Fit_Motor_Inteligente_corregido.ipynb` **no existe** en la carpeta ni en Descargas. Se usó
-  `Descargas/TNT_Fit_Motor_Inteligente.ipynb` (el más reciente de los dos encontrados; el otro es `..._APF3_...`).
-  Si existe una versión "corregida", conviene compararla con `ml/datos.py` y `ml/entrenar.py`.
+- El notebook oficial es `TNT_Fit_Motor_Inteligente_corregido.ipynb`. **No estaba en el disco** (solo las copias viejas, que aún tienen
+  `+0.45*var_grasa_pct` en el logit y dan 13.2 % de abandono), así que `ml/datos.py` se sincronizó aplicando el cambio descrito:
+  se quitó ese término del logit del abandono. `var_grasa_pct` se sigue generando igual (no mueve la semilla) pero no influye en el
+  abandono ni entra al modelo. Las demás partes del Script 1 no se pudieron comparar línea a línea con el corregido; si cambió algo más,
+  las métricas de abajo lo delatarían y no es el caso.
 
-## Métricas: obtenidas vs. Colab
+## Métricas (scikit-learn 1.6.1, semilla 42)
 
-| Modelo | Colab | Este repo | ¿Coincide? |
+| Modelo | Esperado (notebook corregido) | Este repo | ¿Coincide? |
 |---|---|---|---|
-| Afluencia · Random Forest Regressor | R² 0.941 · MAE 2.88 | R² 0.941 · MAE 2.88 | ✅ exacto |
-| K-Means k=3 | silueta 0.396; perfiles medios (visitas 4.2/2.0/2.0) | silueta 0.396; mismos perfiles medios (4.2/2.0/2.0) | ✅ exacto |
-| Mean-Shift | 14 grupos, 86 marcadas, P 0.779 · R 0.957 · F1 0.859 | idéntico | ✅ exacto |
-| Abandono · Random Forest (con las 9 numéricas del Colab, incl. `var_grasa_pct`) | F1 0.602 · ROC-AUC 0.927 | F1 0.620 · ROC-AUC 0.926 | ≈ (ver abajo) |
-| **Abandono · Random Forest de producción (sin `var_grasa_pct`)** | — | F1 0.593 · ROC-AUC **0.914** · matriz **[[591,60],[32,67]]** | ver abajo |
+| Tasa de abandono simulada | 12.5 % | 12.5 % | ✅ |
+| Afluencia · Random Forest Regressor | R² 0.941 | R² 0.941 · MAE 2.88 | ✅ |
+| Abandono · Random Forest (sin `var_grasa_pct`) | [[590,66],[27,67]] · ROC-AUC ≈ 0.918 | [[590,66],[27,67]] · ROC-AUC 0.918 · F1 0.590 · P 0.504 · R 0.713 | ✅ exacto |
+| K-Means k=3 | silueta 0.396 | silueta 0.396 | ✅ |
+| Mean-Shift | F1 0.859 | F1 0.859 (P 0.779 · R 0.957) | ✅ |
 
-**Diferencia con las cifras del encargo.** El encargo pedía matriz `[[590,66],[27,67]]` y ROC-AUC ≈ 0.918 para el Random Forest de
-abandono. **Esas cifras no aparecen en el notebook** (ni en el otro). Además son incompatibles con los datos simulados con semilla 42:
-la matriz tiene 94 abandonos en el conjunto de prueba, pero con 13.2 % de abandono en 3,000 socios el conjunto de prueba (25 %,
-estratificado) tiene necesariamente 99. Lo más cercano en el Colab es XGBoost (ROC-AUC 0.919). Los datos y el resto de modelos
-reproducen el Colab al decimal, así que se concluye que las cifras del encargo salen de otra versión del notebook.
-
-Dos causas explican la diferencia pequeña en abandono: (1) quitar `var_grasa_pct` (obligatorio por privacidad) baja AUC de 0.926 a 0.914;
-(2) la pequeña diferencia 0.926 vs 0.927 con las mismas variables se debe, muy probablemente, al orden de columnas (el Random Forest sortea variables por árbol); no se investigó más.
-Que el modelo rinda bien **sin** el dato de salud es un buen argumento para el informe.
+Referencia: el mismo Random Forest **con** `var_grasa_pct` como variable da ROC-AUC 0.916 (F1 0.587): el dato de salud no aporta nada,
+porque ya no influye en el abandono simulado. (Con la versión vieja de los datos el modelo sin grasa daba 0.914.)
 
 ## Decisiones de diseño
 - **Un día de rutina.** El Colab ordena un ejercicio por cada uno de los 6 patrones de movimiento; la respuesta tiene `dias` con un solo día.

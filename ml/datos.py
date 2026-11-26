@@ -83,8 +83,9 @@ def generar_datos(seed: int = SEED) -> dict[str, pd.DataFrame]:
     socios['var_grasa_pct'] = np.round(-0.35 * socios['visitas_semana'] + rng.normal(0.6, 1.0, n), 2)   # negativo = progreso
     socios['sesiones_estacion'] = np.clip((socios['visitas_semana'] * 4 * 0.6 + rng.normal(0, 2, n)).round(), 0, None)
     socios['coach_contacto_30d'] = (rng.random(n) < 0.35).astype(int)
+    # var_grasa_pct se sigue generando (para no mover la semilla) pero YA NO influye en el abandono.
     logit = (-1.0 + 0.16 * socios['dias_ultima_visita'] - 0.55 * socios['visitas_semana'] - 0.035 * socios['antiguedad_meses']
-             + 0.55 * (socios['plan'] == 'mensual') - 0.25 * (socios['plan'] == 'anual') + 0.45 * socios['var_grasa_pct']
+             + 0.55 * (socios['plan'] == 'mensual') - 0.25 * (socios['plan'] == 'anual')
              - 0.12 * socios['racha_semanas'] - 0.45 * socios['coach_contacto_30d'] + 0.35 * (socios['semaforo'] != 'verde')
              + rng.normal(0, 0.3, n))
     socios['abandono_30d'] = (rng.random(n) < 1 / (1 + np.exp(-1.4 * logit))).astype(int)

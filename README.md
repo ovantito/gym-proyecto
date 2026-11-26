@@ -99,7 +99,16 @@ cd .. && ruff check .
 | Script 5.2 · DBSCAN | no | — | Mean-Shift lo superó (F1 0.859 vs 0.742) |
 | Regresión lineal, ROI, aprendizaje por refuerzo | no | — | comparativas / fuera de alcance |
 
-Métricas obtenidas vs. Colab: ver `DECISIONES.md`.
+### Métricas de los modelos (`ml/modelos/metadata.json`)
+
+| Modelo | Métrica |
+|---|---|
+| Afluencia · Random Forest Regressor | R² 0.941 · MAE 2.88 socios |
+| Abandono · Random Forest Classifier (12.5 % de abandono simulado) | ROC-AUC 0.918 · F1 0.590 · matriz [[590,66],[27,67]] |
+| Segmentos · K-Means k=3 | silueta 0.396 |
+| Lecturas atípicas · Mean-Shift | F1 0.859 (precisión 0.779, recall 0.957) |
+
+Coinciden con el notebook corregido; detalle en `DECISIONES.md`.
 
 ## Documentos
 
