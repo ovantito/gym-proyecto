@@ -135,3 +135,16 @@ def test_ver_video_es_publico_y_redirige_con_url_firmada_nueva(client):
     assert r.status_code == 302 and 'X-Amz-Expires=900' in r.headers['location'] and 'E-M-01.mp4' in r.headers['location']
     assert client.get('/v1/ejercicios/E-M-99/ver', follow_redirects=False).status_code == 404
     assert client.get('/v1/ejercicios/xx/ver', follow_redirects=False).status_code == 422
+
+
+# ------------------------------------------------------------------ las claves secretas nunca llegan a un frontend
+def test_ningun_frontend_menciona_la_secret_key():
+    from pathlib import Path
+    raiz = Path(__file__).resolve().parents[2]
+    prohibido = ('sb_secret_', 'SUPABASE_SECRET_KEY', 'service_role')
+    for app in ('estacion', 'panel-coach'):
+        for f in (raiz / app).rglob('*'):
+            if not f.is_file() or 'node_modules' in f.parts or 'dist' in f.parts or f.name == 'package-lock.json':
+                continue
+            texto = f.read_text(encoding='utf-8', errors='ignore')
+            assert not any(p in texto for p in prohibido), f'{f} contiene una clave secreta'

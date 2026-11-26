@@ -1,7 +1,7 @@
 -- Estación TNT Fit · esquema de Supabase (Postgres)
 -- Roles: viajan en el JWT de Supabase Auth, en app_metadata.role = socio | coach | admin
 -- (la estación NO usa JWT: usa X-Station-Key y solo habla con el backend).
--- El backend usa la service key (salta RLS) y además aplica las mismas reglas en código.
+-- El backend usa la secret key sb_secret_... (salta RLS) y además aplica las mismas reglas en código.
 -- RLS protege cualquier acceso directo a la base con un JWT de usuario.
 
 create extension if not exists pgcrypto;
@@ -138,4 +138,4 @@ create policy alertas_admin on public.alertas for all using (rol_actual() = 'adm
 create policy estaciones_admin on public.estaciones for all using (rol_actual() = 'admin') with check (rol_actual() = 'admin');
 create policy modelos_admin on public.modelos_version for all using (rol_actual() = 'admin') with check (rol_actual() = 'admin');
 create policy modelos_lectura on public.modelos_version for select using (rol_actual() in ('coach','admin'));
--- Sin política = sin acceso: anon y estación nunca leen tablas directamente.
+-- Sin política = sin acceso: la clave publishable (rol anon) y la estación nunca leen tablas directamente.

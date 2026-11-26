@@ -1,6 +1,6 @@
 """Carga los 3,000 socios simulados (semilla 42) y una estación piloto en Supabase.
 
-Uso (desde la raíz del repo, con SUPABASE_URL y SUPABASE_SERVICE_KEY en .env o en el entorno):
+Uso (desde la raíz del repo, con SUPABASE_URL y SUPABASE_SECRET_KEY en .env o en el entorno):
     python supabase/seed.py
 
 Los socios simulados tienen coach_id de coaches ficticios; en Supabase real, asigna coaches
@@ -19,8 +19,8 @@ from app.core.semilla import sembrar  # noqa: E402
 def main() -> None:
     cfg = get_settings()
     if not cfg.usa_supabase:
-        sys.exit('Faltan SUPABASE_URL y SUPABASE_SERVICE_KEY (ver .env.example).')
-    repo = RepoSupabase(cfg.supabase_url, cfg.supabase_service_key)
+        sys.exit('Faltan SUPABASE_URL y SUPABASE_SECRET_KEY (ver .env.example).')
+    repo = RepoSupabase(cfg.supabase_url, cfg.supabase_secret_key)
     if repo.find('socios'):
         sys.exit('La tabla socios ya tiene datos; no se vuelve a sembrar.')
     est, clave = sembrar(repo)

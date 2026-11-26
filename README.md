@@ -149,7 +149,7 @@ Secciones: Rutinas por aprobar (aprobar / rechazar con motivo) · Riesgo de aban
 Perfiles de socio (K-Means) · Estaciones y mantenimiento (lecturas atípicas de Mean-Shift) · Modelo de IA (versión y métricas en palabras simples).
 
 **Usuarios de prueba:** en modo demo (sin Supabase) el backend crea `coach@tnt.demo`, `coach2@tnt.demo` y `admin@tnt.demo` y **imprime sus contraseñas al
-arrancar** (o define `DEMO_COACH_PASSWORD` / `DEMO_ADMIN_PASSWORD`). Con Supabase, el login usa Supabase Auth (requiere `SUPABASE_ANON_KEY`) y el rol va en
+arrancar** (o define `DEMO_COACH_PASSWORD` / `DEMO_ADMIN_PASSWORD`). Con Supabase, el login usa Supabase Auth (requiere `SUPABASE_PUBLISHABLE_KEY`) y el rol va en
 `app_metadata.role`.
 
 Endpoints nuevos (prefijo `/v1`): `POST /auth/login`, `GET /coach/socios`, `GET /coach/perfiles`, `GET /coach/mantenimiento`, `GET /coach/modelo`,

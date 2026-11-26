@@ -16,9 +16,9 @@ class Settings(BaseSettings):
     entorno: str = 'dev'
     # Supabase (si faltan, se usa el repositorio en memoria)
     supabase_url: str | None = None
-    supabase_service_key: str | None = None
+    supabase_secret_key: str | None = None   # sb_secret_...: SOLO backend/.env y Render; jamás en un frontend
     supabase_jwt_secret: str | None = None
-    supabase_anon_key: str | None = None   # solo para el login del panel contra Supabase Auth
+    supabase_publishable_key: str | None = None   # sb_publishable_...: pública; el login del panel contra Supabase Auth
     jwt_audience: str = 'authenticated'
     # CORS: dominios del frontend separados por coma. Vacío = ninguno permitido.
     cors_origins: str = ''
@@ -51,7 +51,7 @@ class Settings(BaseSettings):
 
     @property
     def usa_supabase(self) -> bool:
-        return bool(self.supabase_url and self.supabase_service_key)
+        return bool(self.supabase_url and self.supabase_secret_key)
 
 
 @lru_cache

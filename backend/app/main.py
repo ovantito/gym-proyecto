@@ -33,7 +33,7 @@ def create_app(settings: Settings | None = None, repo=None) -> FastAPI:
         cfg.supabase_jwt_secret = secrets.token_urlsafe(48)
     app.state.modelos = cargar_modelos(cfg.modelos_dir)   # una sola vez, al iniciar
     if repo is None:
-        repo = RepoSupabase(cfg.supabase_url, cfg.supabase_service_key) if cfg.usa_supabase else RepoMemoria()
+        repo = RepoSupabase(cfg.supabase_url, cfg.supabase_secret_key) if cfg.usa_supabase else RepoMemoria()
         if isinstance(repo, RepoMemoria) and cfg.semilla_demo:
             est, clave = sembrar(repo, cfg.demo_station_key)
             print(f"[demo en memoria] estación id={est['id']}")

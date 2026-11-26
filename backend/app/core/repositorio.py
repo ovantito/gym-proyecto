@@ -1,7 +1,7 @@
 """Repositorio de datos. Dos implementaciones con la misma interfaz mínima:
 
 - RepoMemoria: para probar sin internet (se pierde al reiniciar).
-- RepoSupabase: PostgREST de Supabase vía httpx, con la service key (solo en el servidor).
+- RepoSupabase: PostgREST de Supabase vía httpx, con la secret key sb_secret_... (solo en el servidor).
 Los IDs los genera la aplicación (uuid4) para que ambas se comporten igual.
 """
 from __future__ import annotations
@@ -60,10 +60,11 @@ class RepoMemoria:
 class RepoSupabase:
     nombre = 'supabase'
 
-    def __init__(self, url: str, service_key: str) -> None:
+    def __init__(self, url: str, secret_key: str) -> None:
         self.http = httpx.Client(
             base_url=f'{url.rstrip("/")}/rest/v1', timeout=15,
-            headers={'apikey': service_key, 'Authorization': f'Bearer {service_key}', 'Content-Type': 'application/json'})
+            # Las claves sb_secret_ no son JWT: van SOLO en `apikey` (no en Authorization: Bearer).
+            headers={'apikey': secret_key, 'Content-Type': 'application/json'})
 
     def _ok(self, r: httpx.Response) -> httpx.Response:
         r.raise_for_status()
