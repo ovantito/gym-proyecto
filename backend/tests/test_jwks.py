@@ -4,9 +4,8 @@ from types import SimpleNamespace
 
 import jwt
 import pytest
-from cryptography.hazmat.primitives.asymmetric import ec
-
 from app.core import seguridad
+from cryptography.hazmat.primitives.asymmetric import ec
 
 
 def _token(clave_privada, rol='admin', alg='ES256'):
