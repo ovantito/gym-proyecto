@@ -99,6 +99,42 @@ export interface LoteOut {
   modelo: string
 }
 
+export type Lesion = 'rodilla' | 'hombro' | 'espalda_baja' | 'cadera'
+
+/** Ficha de salud tal como la guarda el backend (salud.py · ficha_publica) */
+export interface FichaSalud {
+  parq: boolean[]
+  lesiones: Lesion[]
+  semaforo: Semaforo
+  motivos: string[]
+  requiereAptoMedico: boolean
+  maquinasExcluidas: string[]
+  actualizada: string | null
+}
+
+interface EstadoFicha {
+  parq: boolean[]
+  lesiones: Lesion[]
+  semaforo: Semaforo
+}
+
+/** Fila de fichas_salud_historial */
+export interface CambioFicha {
+  id: string
+  socio_id: string
+  motivo: string
+  hecho_por: string | null
+  fecha: string
+  cambio: { antes: EstadoFicha; despues: EstadoFicha }
+}
+
+/** GET /v1/coach/fichas?dni=…  y  PUT /v1/coach/fichas/{socioId} */
+export interface FichaSocioOut {
+  socio: { id: string; nombre: string; dni: string | null; semaforo: Semaforo }
+  ficha: FichaSalud | null
+  historial: CambioFicha[]
+}
+
 // ---------------------------------------------------------------- errores y núcleo
 export class ErrorApi extends Error {
   constructor(
@@ -133,7 +169,7 @@ function mensaje(estado: number, detalle: unknown): string {
   return 'Algo salió mal, intenta de nuevo.'
 }
 
-async function pedir<T>(metodo: 'GET' | 'POST', ruta: string, cuerpo?: unknown): Promise<T> {
+async function pedir<T>(metodo: 'GET' | 'POST' | 'PUT', ruta: string, cuerpo?: unknown): Promise<T> {
   let r: Response
   try {
     r = await fetch(`${BASE}/v1${ruta}`, {
@@ -172,3 +208,6 @@ export const perfiles = () => pedir<PerfilesOut>('GET', '/coach/perfiles')
 export const mantenimiento = () => pedir<MantenimientoOut>('GET', '/coach/mantenimiento')
 export const modelo = () => pedir<ModeloOut>('GET', '/coach/modelo')
 export const ejecutarAnalisisNocturno = () => pedir<LoteOut>('POST', '/prediccion/abandono/lote')
+export const buscarFicha = (dni: string) => pedir<FichaSocioOut>('GET', `/coach/fichas?dni=${encodeURIComponent(dni)}`)
+export const corregirFicha = (socioId: string, cambio: { parq: boolean[]; lesiones: Lesion[]; motivo: string }) =>
+  pedir<FichaSocioOut>('PUT', `/coach/fichas/${encodeURIComponent(socioId)}`, cambio)

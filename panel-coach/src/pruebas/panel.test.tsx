@@ -11,6 +11,7 @@ const RUTINA = {
   creada: '2026-11-26T15:00:00+00:00', socioNombre: 'Socio 0011', motivos: ['Lesión declarada: rodilla'], maquinasExcluidas: ['M-02', 'M-03'],
   dias: [{ ejercicios: [{ id: 'E-M-17', nombre: 'Plancha en banco', maquina: 'M-17', series: 2, repeticiones: 10, descansoSeg: 90 }] }],
 }
+const PARQ_NO = [false, false, false, false, false, false, false]
 const SOCIO = (n: string, p: number) => ({
   id: n, nombre: n, probabilidad: p, nivel: p > 0.6 ? 'alto' : 'bajo', segmento: 'nocturno_nuevo', alertaId: p > 0.6 ? `a-${n}` : null,
   factores: [
@@ -25,6 +26,10 @@ function instalar(o: Opciones = {}) {
   const rol = o.rol ?? 'coach'
   const llamadas: { metodo: string; ruta: string; body?: unknown }[] = []
   let pendientes = [RUTINA]
+  let fichaActual: Record<string, unknown> = { parq: PARQ_NO, lesiones: ['rodilla'], semaforo: 'amarillo', motivos: ['Lesión declarada: rodilla'],
+    requiereAptoMedico: false, maquinasExcluidas: ['M-02', 'M-03'], actualizada: '2026-11-25T10:00:00+00:00' }
+  let historial: unknown[] = []
+  const vistaFicha = () => ({ socio: { id: 's-9', nombre: 'Socio 0009', dni: '12345678', semaforo: fichaActual.semaforo }, ficha: fichaActual, historial })
   vi.stubGlobal('fetch', vi.fn(async (url: string, init: RequestInit = {}) => {
     const ruta = url.replace(/^.*\/v1/, '')
     const metodo = init.method ?? 'GET'
@@ -38,6 +43,16 @@ function instalar(o: Opciones = {}) {
     if (/\/coach\/rutinas\/r-1\/(aprobar|rechazar)$/.test(ruta)) { pendientes = []; return ok({ ok: true }) }
     if (ruta.startsWith('/coach/socios')) return ok({ analizado: true, totalSocios: 600, socios: [SOCIO('Socio 0001', 0.93), SOCIO('Socio 0002', 0.2)] })
     if (/\/coach\/alertas\/.+\/atender$/.test(ruta)) return ok({ resuelta: true })
+    if (ruta.startsWith('/coach/fichas?dni=')) {
+      return ruta.endsWith('12345678') ? ok(vistaFicha()) : ok({ detail: 'No encontramos ese DNI entre tus socios' }, 404)
+    }
+    if (ruta === '/coach/fichas/s-9' && metodo === 'PUT') {
+      const b = JSON.parse(init.body as string)
+      fichaActual = { ...fichaActual, parq: b.parq, lesiones: b.lesiones, semaforo: b.lesiones.length ? 'amarillo' : 'verde' }
+      historial = [{ id: 'h-1', socio_id: 's-9', motivo: b.motivo, hecho_por: 'c-1', fecha: '2026-11-26T16:00:00+00:00',
+        cambio: { antes: { parq: PARQ_NO, lesiones: ['rodilla'], semaforo: 'amarillo' }, despues: { parq: b.parq, lesiones: b.lesiones, semaforo: fichaActual.semaforo } } }]
+      return ok(vistaFicha())
+    }
     if (ruta === '/prediccion/abandono/lote') return ok({ procesados: 3000, alertasNuevas: 14, modelo: '1.0.0' })
     return ok({ detail: 'no encontrado' }, 404)
   }))
@@ -159,5 +174,46 @@ describe('secciones', () => {
     expect(screen.getAllByText('▲ 12 días sin venir (más que la mayoría)')).toHaveLength(2)
     await u.click(screen.getByRole('button', { name: 'Registrar contacto' }))
     await waitFor(() => expect(l.some((x) => x.metodo === 'POST' && x.ruta === '/coach/alertas/a-Socio%200001/atender')).toBe(true))
+  })
+})
+
+describe('fichas de salud', () => {
+  it('busca por DNI, quita una lesión con motivo y queda en el historial', async () => {
+    const l = instalar()
+    const u = userEvent.setup()
+    render(<App />)
+    await entrar(u)
+    await u.click(await screen.findByRole('button', { name: 'Fichas de salud' }))
+    const buscar = screen.getByRole('button', { name: 'Buscar' })
+    expect(buscar).toBeDisabled()
+    await u.type(screen.getByLabelText('DNI del socio'), '12345678')
+    await u.click(buscar)
+    expect(await screen.findByText('Socio 0009')).toBeInTheDocument()
+    expect(screen.getByText('Sin cambios hechos por el coach.')).toBeInTheDocument()
+
+    const guardar = screen.getByRole('button', { name: 'Guardar cambio' })
+    expect(guardar).toBeDisabled()
+    await u.click(screen.getByLabelText('Rodilla'))   // quitar la lesión
+    expect(guardar).toBeDisabled()                    // sin motivo no se puede guardar
+    await u.click(screen.getByRole('button', { name: 'Presentó apto médico' }))
+    expect(guardar).toBeEnabled()
+    await u.click(guardar)
+
+    expect(await screen.findByText('Motivo: Presentó apto médico')).toBeInTheDocument()
+    expect(screen.getByText('Quitó la lesión de rodilla')).toBeInTheDocument()
+    expect(l.find((x) => x.metodo === 'PUT' && x.ruta === '/coach/fichas/s-9')?.body).toEqual({
+      parq: PARQ_NO, lesiones: [], motivo: 'Presentó apto médico',
+    })
+  })
+
+  it('un DNI que no es de sus socios muestra el aviso del backend', async () => {
+    instalar()
+    const u = userEvent.setup()
+    render(<App />)
+    await entrar(u)
+    await u.click(await screen.findByRole('button', { name: 'Fichas de salud' }))
+    await u.type(screen.getByLabelText('DNI del socio'), '99999999')
+    await u.click(screen.getByRole('button', { name: 'Buscar' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('No encontramos ese DNI entre tus socios')
   })
 })

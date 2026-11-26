@@ -1,8 +1,8 @@
-import { act, render, screen, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from '../App'
-import type { FichaOut, RutinaOut } from '../api/cliente'
+import type { FichaGuardadaOut, FichaOut, RutinaOut } from '../api/cliente'
 
 type Manejador = (url: string, init: RequestInit) => unknown
 const ok = (cuerpo: unknown, status = 200) => new Response(JSON.stringify(cuerpo), { status })
@@ -24,7 +24,7 @@ const RUTINA: RutinaOut = {
 }
 
 /** Backend simulado. `ficha`, `medicion` y `video` se pueden cambiar por prueba. */
-function instalarBackend(o: { ficha?: FichaOut; atipica?: boolean; video?: 'ok' | 'error'; amarilla?: boolean } = {}) {
+function instalarBackend(o: { ficha?: FichaOut; previa?: FichaGuardadaOut; atipica?: boolean; video?: 'ok' | 'error'; amarilla?: boolean; rechazarPut?: boolean } = {}) {
   const llamadas: string[] = []
   const bodies: Record<string, unknown>[] = []
   const remoto = { estado: 'pendiente_aprobacion', motivoRechazo: null as string | null } // lo que "decide" el coach
@@ -41,6 +41,9 @@ function instalarBackend(o: { ficha?: FichaOut; atipica?: boolean; video?: 'ok' 
           : { medicionId: 'm', atipica: false, usada: true },
         201,
       )
+    if (/\/ficha-salud$/.test(url) && metodo === 'GET') return ok(o.previa ?? { existe: false })
+    if (/\/ficha-salud$/.test(url) && o.rechazarPut)
+      return ok({ detail: 'No se puede quitar una condición ya registrada. Habla con tu coach: lesión: rodilla' }, 409)
     if (/\/ficha-salud$/.test(url)) return ok(ficha)
     if (/\/rutinas\/generar$/.test(url))
       return ok(o.amarilla ? { ...RUTINA, semaforo: 'amarillo', estado: 'pendiente_aprobacion' } : RUTINA, 201)
@@ -76,7 +79,7 @@ async function hastaSemaforo(u: ReturnType<typeof nuevo>) {
   await screen.findByText(/Medición registrada/)
   await u.click(screen.getByRole('button', { name: 'Continuar' }))
   await screen.findByText('Antes de entrenar')
-  expect(screen.getByText(/La IA solo recibe el color de tu semáforo/)).toBeInTheDocument()
+  expect(screen.queryByText(/La IA solo recibe/)).not.toBeInTheDocument() // sin avisos técnicos
   await u.click(screen.getByRole('button', { name: 'Ver mi semáforo' }))
 }
 
@@ -91,8 +94,9 @@ describe('flujo de la estación', () => {
     expect(await screen.findByText(/Verde · ¡A entrenar!/)).toBeInTheDocument()
     await u.click(screen.getByRole('button', { name: 'Ver mi rutina' }))
 
-    expect(await screen.findByText(/Orden optimizado por el motor \(A\*\)/)).toBeInTheDocument()
-    expect(screen.getByText('M-17')).toBeInTheDocument()
+    expect(await screen.findByText('M-17')).toBeInTheDocument()
+    // rutina limpia: sin términos técnicos ni el recuadro del motor
+    expect(screen.queryByText(/Orden optimizado|motor|A\*|socios en sala/)).not.toBeInTheDocument()
     expect(screen.getByText('espera 7 min')).toBeInTheDocument() // 6.8 redondeado
     await u.click(screen.getByRole('button', { name: /Prensa 45°, ver video/ }))
     await waitFor(() => expect(screen.getByLabelText('Video de Prensa 45°')).toBeInTheDocument())
@@ -187,7 +191,7 @@ describe('amarillo en vivo y presión alta', () => {
   async function hastaRutinaAmarilla(u: ReturnType<typeof nuevo>) {
     await hastaSemaforo(u)
     await u.click(await screen.findByRole('button', { name: 'Ver mi rutina' }))
-    await screen.findByText(/Orden optimizado/)
+    await screen.findByText('Plancha en banco')
   }
   const consultas = (l: string[]) => l.filter((x) => x === 'GET /rutinas/r-1').length
 
@@ -249,5 +253,84 @@ describe('amarillo en vivo y presión alta', () => {
     await u.click(screen.getByRole('button', { name: 'Simular presión alta' }))
     expect(await screen.findByText(/165 \/ 102/)).toBeInTheDocument()
     expect(l.bodies.find((b) => b.presion_sistolica === 165)).toMatchObject({ presion_diastolica: 102 })
+  })
+})
+
+describe('ficha de salud persistente', () => {
+  const PREVIA: FichaGuardadaOut = {
+    existe: true,
+    parq: [false, false, false, false, true, false, false],
+    lesiones: ['rodilla'],
+    semaforo: 'amarillo',
+    motivos: ['Lesión declarada: rodilla'],
+    requiereAptoMedico: false,
+    maquinasExcluidas: ['M-02', 'M-03'],
+  }
+  const amarilla: FichaOut = { semaforo: 'amarillo', motivos: ['Lesión declarada: rodilla'], requiereAptoMedico: false, maquinasExcluidas: ['M-02', 'M-03'] }
+
+  async function hastaSalud(u: ReturnType<typeof nuevo>) {
+    await escribirDni(u)
+    await screen.findByText(/Hola, Carla Pérez/)
+    await u.click(screen.getByRole('button', { name: 'Simular báscula' }))
+    await screen.findByText(/Medición registrada/)
+    await u.click(screen.getByRole('button', { name: 'Continuar' }))
+  }
+
+  it('sin ficha previa muestra el formulario completo, sin la pregunta de «sigues igual»', async () => {
+    instalarBackend()
+    const u = nuevo()
+    render(<App />)
+    await hastaSalud(u)
+    expect(await screen.findByText('Antes de entrenar')).toBeInTheDocument()
+    expect(screen.queryByText('¿Sigues igual que la última vez?')).not.toBeInTheDocument()
+  })
+
+  it('con ficha previa la precarga y «Sí, sigo igual» la reutiliza tal cual', async () => {
+    const l = instalarBackend({ previa: PREVIA, ficha: amarilla })
+    const u = nuevo()
+    render(<App />)
+    await hastaSalud(u)
+    expect(await screen.findByText('¿Sigues igual que la última vez?')).toBeInTheDocument()
+    expect(screen.getByText('• Lesión de rodilla')).toBeInTheDocument()
+    expect(screen.queryByText('Antes de entrenar')).not.toBeInTheDocument()
+
+    await u.click(screen.getByRole('button', { name: 'Sí, sigo igual' }))
+    expect(await screen.findByText(/Amarillo · Entrena con cuidado/)).toBeInTheDocument()
+    const put = l.bodies.find((b) => 'parq' in b)
+    expect(put).toEqual({ parq: PREVIA.parq, lesiones: ['rodilla'] })
+  })
+
+  it('«Actualizar» muestra lo anterior bloqueado: no se puede quitar, pero sí agregar', async () => {
+    const l = instalarBackend({ previa: PREVIA, ficha: amarilla })
+    const u = nuevo()
+    render(<App />)
+    await hastaSalud(u)
+    await u.click(await screen.findByRole('button', { name: 'Actualizar' }))
+
+    expect(await screen.findByText('Antes de entrenar')).toBeInTheDocument()
+    const rodilla = screen.getByRole('button', { name: /Rodilla/ })
+    expect(rodilla).toBeDisabled()
+    expect(rodilla).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getAllByText(/Para quitarla, habla con tu coach/).length).toBeGreaterThan(0)
+    // la respuesta «Sí» ya registrada tampoco se puede cambiar a «No»
+    const pregunta5 = screen.getByRole('group', { name: 'Pregunta 5' })
+    expect(within(pregunta5).getByRole('button', { name: 'No' })).toBeDisabled()
+    await u.click(rodilla)
+    expect(rodilla).toHaveAttribute('aria-pressed', 'true')
+
+    await u.click(screen.getByRole('button', { name: 'Hombro' })) // agregar sí se puede
+    await u.click(screen.getByRole('button', { name: 'Ver mi semáforo' }))
+    await screen.findByText(/Amarillo · Entrena con cuidado/)
+    expect(l.bodies.find((b) => 'parq' in b)).toEqual({ parq: PREVIA.parq, lesiones: ['rodilla', 'hombro'] })
+  })
+
+  it('si el backend responde 409 por quitar una condición, la estación lo muestra y no avanza', async () => {
+    instalarBackend({ previa: PREVIA, rechazarPut: true })
+    const u = nuevo()
+    render(<App />)
+    await hastaSalud(u)
+    await u.click(await screen.findByRole('button', { name: 'Sí, sigo igual' }))
+    expect(await screen.findByText(/No se puede quitar una condición ya registrada/)).toBeInTheDocument()
+    expect(screen.getByText('¿Sigues igual que la última vez?')).toBeInTheDocument()
   })
 })

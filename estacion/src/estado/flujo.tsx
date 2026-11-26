@@ -1,7 +1,7 @@
 /** Estado del flujo en UN solo lugar: un reducer + acciones que llaman al backend. */
 import { createContext, useCallback, useContext, useEffect, useMemo, useReducer, useRef, type ReactNode } from 'react'
 import * as api from '../api/cliente'
-import type { FichaIn, FichaOut, RutinaOut, Semaforo } from '../api/cliente'
+import type { FichaIn, FichaOut, FichaPrevia, RutinaOut, Semaforo } from '../api/cliente'
 import { lecturaImposible, lecturaNormal, lecturaPresionAlta, type Lectura } from './simulador'
 
 export type Pantalla = 'identificacion' | 'medicion' | 'salud' | 'semaforo' | 'rutina' | 'ticket'
@@ -17,6 +17,8 @@ export interface Estado {
   atipica: boolean
   medicionValida: boolean
   ficha: FichaOut | null
+  /** ficha que el socio ya tenía guardada (null si es su primera vez) */
+  fichaPrevia: FichaPrevia | null
   rutina: RutinaOut | null
   /** motivo escrito por el coach si rechazó la rutina */
   motivoRechazo: string | null
@@ -33,6 +35,7 @@ export const estadoInicial: Estado = {
   atipica: false,
   medicionValida: false,
   ficha: null,
+  fichaPrevia: null,
   rutina: null,
   motivoRechazo: null,
   espera: {},
@@ -42,7 +45,7 @@ type Accion =
   | { t: 'cargando' }
   | { t: 'error'; mensaje: string }
   | { t: 'limpiar_error' }
-  | { t: 'sesion'; sesionId: string; socio: Estado['socio'] }
+  | { t: 'sesion'; sesionId: string; socio: Estado['socio']; fichaPrevia: FichaPrevia | null }
   | { t: 'lectura'; lectura: Lectura }
   | { t: 'medicion'; atipica: boolean }
   | { t: 'ir'; pantalla: Pantalla }
@@ -60,7 +63,7 @@ export function reducer(e: Estado, a: Accion): Estado {
     case 'limpiar_error':
       return { ...e, error: null }
     case 'sesion':
-      return { ...estadoInicial, pantalla: 'medicion', sesionId: a.sesionId, socio: a.socio }
+      return { ...estadoInicial, pantalla: 'medicion', sesionId: a.sesionId, socio: a.socio, fichaPrevia: a.fichaPrevia }
     case 'lectura':
       return { ...e, cargando: true, error: null, lectura: a.lectura, atipica: false, medicionValida: false }
     case 'medicion':
@@ -121,7 +124,9 @@ export function ProveedorFlujo({ children }: { children: ReactNode }) {
         correr(async () => {
           const g = generacion.current
           const r = await api.abrirSesion({ dni })
-          if (vigente(g)) dispatch({ t: 'sesion', sesionId: r.sesionId, socio: r.socio })
+          // La ficha guardada es opcional: si no se puede leer, el socio simplemente la llena de nuevo.
+          const previa = await api.obtenerFicha(r.socio.id).catch(() => null)
+          if (vigente(g)) dispatch({ t: 'sesion', sesionId: r.sesionId, socio: r.socio, fichaPrevia: previa?.existe ? previa : null })
         }),
       medir: async (tipo = 'normal') => {
         const imposible = tipo === 'imposible'

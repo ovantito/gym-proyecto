@@ -6,7 +6,7 @@ import { useFlujo } from '../estado/flujo'
 
 type Video = { id: string; nombre: string; estado: 'cargando' | 'ok' | 'error'; url?: string }
 
-/** Pantalla 5: rutina ordenada por A*. Al tocar un ejercicio se pide su video firmado a R2. */
+/** Pantalla 5: rutina ordenada. Al tocar un ejercicio se pide su video firmado a R2. */
 export function Rutina() {
   const { estado, irA, consultarRutina } = useFlujo()
   const [video, setVideo] = useState<Video | null>(null)
@@ -23,7 +23,6 @@ export function Rutina() {
 
   if (!rutina) return null
   const ejercicios: Ejercicio[] = rutina.dias.flatMap((d) => d.ejercicios)
-  const det = rutina.detalle
   const aprobada = rutina.semaforo === 'amarillo' && rutina.estado === 'activa'
   const rechazada = rutina.estado === 'rechazada'
 
@@ -96,16 +95,6 @@ export function Rutina() {
           </ol>
         </div>
         <div className="flex min-h-0 flex-col gap-4">
-          <div className="rounded-2xl border-2 border-naranja bg-naranja/10 px-5 py-4">
-            <p className="text-[22px] font-bold text-naranja">
-              Orden optimizado por el motor ({det?.algoritmo === 'hill_climbing' ? 'modo respaldo' : 'A*'})
-            </p>
-            {det && (
-              <p className="mt-1 text-[18px]">
-                {det.sociosEnSala} socios en sala ahora. Este orden te hace perder ~{Math.round(det.tiempoPerdidoEstimadoMin)} min entre traslados y esperas.
-              </p>
-            )}
-          </div>
           <div className="flex flex-1 items-center justify-center overflow-hidden rounded-2xl bg-[#2a4a7f]" data-testid="panel-video">
             {!video && <p className="px-6 text-center text-[22px] text-white/80">Toca un ejercicio para ver su video</p>}
             {video?.estado === 'cargando' && <p className="text-[22px]">Cargando video…</p>}

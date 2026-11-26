@@ -3,6 +3,7 @@ import { ejecutarAnalisisNocturno, ErrorApi, type LoteOut } from './api/cliente'
 import { Boton } from './componentes/ui'
 import { useSesion } from './estado/sesion'
 import { Aprobar } from './secciones/Aprobar'
+import { Fichas } from './secciones/Fichas'
 import { Mantenimiento } from './secciones/Mantenimiento'
 import { Modelo } from './secciones/Modelo'
 import { Perfiles } from './secciones/Perfiles'
@@ -59,6 +60,7 @@ export function Login() {
 // ---------------------------------------------------------------- panel
 const SECCIONES = [
   { id: 'aprobar', texto: 'Rutinas por aprobar' },
+  { id: 'fichas', texto: 'Fichas de salud' },
   { id: 'riesgo', texto: 'Riesgo de abandono' },
   { id: 'perfiles', texto: 'Perfiles de socio' },
   { id: 'mantenimiento', texto: 'Estaciones y mantenimiento' },
@@ -129,6 +131,7 @@ export function Panel() {
           </div>
         )}
         {seccion === 'aprobar' && <Aprobar clave={clave} />}
+        {seccion === 'fichas' && <Fichas />}
         {seccion === 'riesgo' && <Riesgo clave={clave} />}
         {seccion === 'perfiles' && <Perfiles clave={clave} />}
         {seccion === 'mantenimiento' && <Mantenimiento clave={clave} />}
