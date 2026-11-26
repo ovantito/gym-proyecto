@@ -28,14 +28,16 @@ def asegurar_usuarios(cfg) -> tuple[dict[str, str], dict[str, str]]:
     """Devuelve ({email: user_id}, {email: contraseña solo de los creados ahora})."""
     h = {'apikey': cfg.supabase_secret_key, 'Content-Type': 'application/json'}
     base = f'{cfg.supabase_url.rstrip("/")}/auth/v1/admin/users'
-    existentes = {u['email']: u['id'] for u in httpx.get(base, params={'per_page': 200}, headers=h, timeout=20).raise_for_status().json()['users']}
+    lista = httpx.get(base, params={'per_page': 200}, headers=h, timeout=20).raise_for_status().json()['users']
+    existentes = {u['email']: u['id'] for u in lista}
     ids, claves = {}, {}
     for email, rol in USUARIOS:
         if email in existentes:
             ids[email] = existentes[email]
             continue
         pw = secrets.token_urlsafe(14)
-        r = httpx.post(base, headers=h, timeout=20, json={'email': email, 'password': pw, 'email_confirm': True, 'app_metadata': {'role': rol}})
+        cuerpo = {'email': email, 'password': pw, 'email_confirm': True, 'app_metadata': {'role': rol}}
+        r = httpx.post(base, headers=h, timeout=20, json=cuerpo)
         r.raise_for_status()
         ids[email], claves[email] = r.json()['id'], pw
     return ids, claves
@@ -51,9 +53,10 @@ def main() -> None:
         sys.exit('La tabla socios ya tiene datos; no se vuelve a sembrar.')
     ids, claves = asegurar_usuarios(cfg)
     est, clave = sembrar(repo, coaches=[ids['coach@tnt.demo'], ids['coach2@tnt.demo']])
-    salida.write_text(json.dumps({'estacion_id': est['id'], 'estacion_clave': clave, 'usuarios': ids, 'passwords': claves}), encoding='utf-8')
-    print(f"Sembrados 3000 socios (repartidos entre coach y coach2). Estación '{est['nombre']}' id={est['id']} (solo se guardó el hash de su clave).")
-    print(f'Usuarios Auth listos: {len(ids)} ({len(claves)} creados ahora). Secretos escritos en {salida} — guárdalos y bórralo.')
+    secretos = {'estacion_id': est['id'], 'estacion_clave': clave, 'usuarios': ids, 'passwords': claves}
+    salida.write_text(json.dumps(secretos), encoding='utf-8')
+    print(f"Sembrados 3000 socios (entre coach y coach2). Estación '{est['nombre']}' id={est['id']} (solo se guardó el hash).")
+    print(f'Usuarios Auth listos: {len(ids)} ({len(claves)} nuevos). Secretos en {salida}: guárdalos y bórralo.')
 
 
 if __name__ == '__main__':
