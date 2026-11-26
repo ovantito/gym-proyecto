@@ -4,11 +4,13 @@ from __future__ import annotations
 import statistics
 from collections import defaultdict
 
-from fastapi import APIRouter, Depends, HTTPException, Request
-from pydantic import BaseModel, ConfigDict, Field
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.core.repositorio import ahora
 from app.core.seguridad import Actor, requiere
+from app.core.umbrales import LESION_MAQUINAS_EXCLUIDAS, PARQ_NUM_PREGUNTAS
+from app.modulos.salud import _alerta, ficha_publica, recalcular_ficha
 
 router = APIRouter(tags=['coach'])
 
@@ -53,6 +55,68 @@ def atender_alerta(request: Request, alerta_id: str, actor: Actor = Depends(requ
     if a['socio_id']:
         repo.update('socios', a['socio_id'], {'coach_contacto_30d': 1})
     return repo.update('alertas', alerta_id, {'resuelta': True, 'atendida_por': actor.id, 'atendida_en': ahora()})
+
+
+# ------------------------------------------------------------------ fichas de salud
+class CorreccionFichaIn(BaseModel):
+    """El coach reemplaza las condiciones de la ficha; `motivo` es obligatorio y queda en el historial."""
+    model_config = ConfigDict(extra='forbid', str_strip_whitespace=True)
+    parq: list[bool] = Field(min_length=PARQ_NUM_PREGUNTAS, max_length=PARQ_NUM_PREGUNTAS)
+    lesiones: list[str] = Field(default_factory=list, max_length=10)
+    motivo: str = Field(min_length=3, max_length=200)
+
+    @model_validator(mode='after')
+    def lesiones_conocidas(self):
+        malas = [x for x in self.lesiones if x not in LESION_MAQUINAS_EXCLUIDAS]
+        if malas:
+            raise ValueError(f'Lesión no reconocida: {malas}')
+        return self
+
+
+def _socio_del_coach(repo, actor: Actor, socio_id: str) -> dict:
+    socio = repo.get('socios', socio_id)
+    if socio is None:
+        raise HTTPException(404, 'Socio no encontrado')
+    if actor.rol == 'coach' and socio.get('coach_id') != actor.id:
+        raise HTTPException(403, 'Este socio no es uno de tus socios')
+    return socio
+
+
+def _vista_ficha(repo, socio: dict) -> dict:
+    previas = repo.find('fichas_salud', socio_id=socio['id'])
+    historial = sorted(repo.find('fichas_salud_historial', socio_id=socio['id']), key=lambda h: h['fecha'], reverse=True)
+    return {'socio': {'id': socio['id'], 'nombre': socio['nombre'], 'dni': socio.get('dni'), 'semaforo': socio['semaforo']},
+            'ficha': ficha_publica(previas[0]) if previas else None, 'historial': historial}
+
+
+@router.get('/coach/fichas')
+def buscar_ficha(request: Request, dni: str = Query(pattern=r'^\d{8}$'), actor: Actor = Depends(requiere('coach', 'admin'))):
+    """Busca un socio por DNI entre los que el actor puede ver. Un socio de otro coach responde igual que uno inexistente."""
+    repo = request.app.state.repo
+    socio = next(iter(repo.find('socios', dni=dni, **_filtro(actor))), None)
+    if socio is None:
+        raise HTTPException(404, 'No encontramos ese DNI entre tus socios')
+    return _vista_ficha(repo, socio)
+
+
+@router.put('/coach/fichas/{socio_id}')
+def corregir_ficha(request: Request, socio_id: str, datos: CorreccionFichaIn, actor: Actor = Depends(requiere('coach', 'admin'))):
+    repo = request.app.state.repo
+    socio = _socio_del_coach(repo, actor, socio_id)
+    previas = repo.find('fichas_salud', socio_id=socio_id)
+    if not previas:
+        raise HTTPException(409, 'El socio aún no tiene ficha de salud')
+    antes = previas[0]
+    if antes['parq'] == datos.parq and sorted(antes['lesiones']) == sorted(datos.lesiones):
+        raise HTTPException(409, 'No hay ningún cambio que guardar')
+    nueva = recalcular_ficha(repo, socio_id, datos.parq, datos.lesiones)   # recalcula el semáforo con la última medición
+    repo.insert('fichas_salud_historial', {
+        'socio_id': socio_id, 'motivo': datos.motivo, 'hecho_por': actor.id, 'fecha': ahora(),
+        'cambio': {'antes': {'parq': antes['parq'], 'lesiones': antes['lesiones'], 'semaforo': antes['semaforo']},
+                   'despues': {'parq': nueva['parq'], 'lesiones': nueva['lesiones'], 'semaforo': nueva['semaforo']}}})
+    if nueva['semaforo'] == 'rojo' and antes['semaforo'] != 'rojo':
+        _alerta(repo, socio, 'semaforo_rojo', 'alta', 'Socio en rojo: requiere apto médico antes de entrenar')
+    return _vista_ficha(repo, repo.get('socios', socio_id))
 
 
 # ------------------------------------------------------------------ rutinas por aprobar

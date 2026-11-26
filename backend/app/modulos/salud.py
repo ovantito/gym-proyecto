@@ -7,7 +7,7 @@ los modelos solo reciben el color.
 from __future__ import annotations
 
 import pandas as pd
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 
 from app.core import umbrales as u
 from app.core.repositorio import ahora
@@ -49,7 +49,8 @@ def maquinas_excluidas(lesiones: list[str]) -> list[str]:
 
 def ultima_medicion_valida(repo, socio_id: str) -> dict | None:
     ms = [m for m in repo.find('mediciones', socio_id=socio_id) if m.get('usada')]
-    return max(ms, key=lambda m: m['fecha']) if ms else None
+    # `fecha` tiene resolución de segundos: ante un empate gana la última insertada (reversed)
+    return max(reversed(ms), key=lambda m: m['fecha']) if ms else None
 
 
 def _aplicar_ficha(repo, socio_id: str, parq, lesiones, sis, dia, pulso) -> dict:
@@ -60,6 +61,22 @@ def _aplicar_ficha(repo, socio_id: str, parq, lesiones, sis, dia, pulso) -> dict
         'actualizada': ahora()}, 'socio_id')
     repo.update('socios', socio_id, {'semaforo': color})
     return ficha
+
+
+def condiciones_quitadas(previa: dict, parq: list[bool], lesiones: list[str]) -> list[str]:
+    """Condiciones que ya estaban en la ficha guardada y faltan en la nueva (PAR-Q+ en «sí» o lesiones)."""
+    quitadas = [f'lesión: {x}' for x in previa.get('lesiones', []) if x not in lesiones]
+    quitadas += [f'PAR-Q+ pregunta {i + 1}' for i, v in enumerate(previa.get('parq', [])) if v and not parq[i]]
+    return quitadas
+
+
+def recalcular_ficha(repo, socio_id: str, parq: list[bool], lesiones: list[str], sis=None, dia=None, pulso=None) -> dict:
+    """Guarda la ficha y recalcula el semáforo; lo que no se manda sale de la última medición válida del socio."""
+    ult = ultima_medicion_valida(repo, socio_id) or {}
+    return _aplicar_ficha(repo, socio_id, parq, lesiones,
+                          sis if sis is not None else ult.get('presion_sistolica'),
+                          dia if dia is not None else ult.get('presion_diastolica'),
+                          pulso if pulso is not None else ult.get('pulso_reposo'))
 
 
 def _alerta(repo, socio: dict, tipo: str, nivel: str, mensaje: str) -> None:
@@ -102,16 +119,33 @@ def registrar_medicion(request: Request, socio_id: str, m: MedicionIn,
     return {'medicionId': fila['id'], 'atipica': False, 'usada': True}
 
 
+@router.get('/socios/{socio_id}/ficha-salud')
+def ver_ficha(request: Request, socio_id: str, actor: Actor = Depends(requiere('estacion', 'coach', 'admin'))):
+    """Ficha guardada del socio (la estación la precarga al identificarse). `existe: false` si aún no tiene."""
+    autorizar_socio(request, actor, socio_id)
+    previas = request.app.state.repo.find('fichas_salud', socio_id=socio_id)
+    if not previas:
+        return {'existe': False}
+    return {'existe': True, **ficha_publica(previas[0])}
+
+
+def ficha_publica(f: dict) -> dict:
+    return {'parq': f['parq'], 'lesiones': f['lesiones'], 'semaforo': f['semaforo'], 'motivos': f['motivos'],
+            'requiereAptoMedico': f['requiere_apto_medico'], 'maquinasExcluidas': f['maquinas_excluidas'],
+            'actualizada': f.get('actualizada')}
+
+
 @router.put('/socios/{socio_id}/ficha-salud')
 def guardar_ficha(request: Request, socio_id: str, f: FichaIn,
                   actor: Actor = Depends(requiere('estacion', 'coach', 'admin'))):
     socio = autorizar_socio(request, actor, socio_id)
     repo = request.app.state.repo
-    ult = ultima_medicion_valida(repo, socio_id) or {}
-    sis = f.presion_sistolica if f.presion_sistolica is not None else ult.get('presion_sistolica')
-    dia = f.presion_diastolica if f.presion_diastolica is not None else ult.get('presion_diastolica')
-    pulso = f.pulso_reposo if f.pulso_reposo is not None else ult.get('pulso_reposo')
-    ficha = _aplicar_ficha(repo, socio_id, f.parq, f.lesiones, sis, dia, pulso)
+    previas = repo.find('fichas_salud', socio_id=socio_id)
+    if previas:   # la ficha solo puede crecer aquí: quitar condiciones es cosa del coach (con motivo e historial)
+        quitadas = condiciones_quitadas(previas[0], f.parq, f.lesiones)
+        if quitadas:
+            raise HTTPException(409, 'No se puede quitar una condición ya registrada. Habla con tu coach: ' + ', '.join(quitadas))
+    ficha = recalcular_ficha(repo, socio_id, f.parq, f.lesiones, f.presion_sistolica, f.presion_diastolica, f.pulso_reposo)
     if ficha['semaforo'] == 'rojo':
         _alerta(repo, socio, 'semaforo_rojo', 'alta', 'Socio en rojo: requiere apto médico antes de entrenar')
     return {'semaforo': ficha['semaforo'], 'motivos': ficha['motivos'], 'requiereAptoMedico': ficha['requiere_apto_medico'],

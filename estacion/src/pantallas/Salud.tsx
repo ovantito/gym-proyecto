@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { FichaIn } from '../api/cliente'
+import type { FichaIn, FichaPrevia } from '../api/cliente'
 import { Aviso } from '../componentes/Aviso'
 import { Boton } from '../componentes/Boton'
 import { Chip } from '../componentes/Chip'
@@ -7,15 +7,42 @@ import { Marco } from '../componentes/Marco'
 import { useFlujo } from '../estado/flujo'
 import { ANIMOS, LESIONES, PREGUNTAS_PARQ } from '../estado/textos'
 
-/** Pantalla 3: ficha de salud (PAR-Q+, ánimo del día y lesiones). */
+const NOMBRE_LESION: Record<string, string> = { rodilla: 'Rodilla', hombro: 'Hombro', espalda_baja: 'Espalda', cadera: 'Cadera' }
+const TEXTO_BLOQUEO = 'Para quitarla, habla con tu coach'
+
+/** Pantalla 3: ficha de salud. Si el socio ya tiene una, primero se le pregunta si sigue igual. */
 export function Salud() {
   const { estado, enviarFicha, limpiarError } = useFlujo()
+  const previa = estado.fichaPrevia
+  const [actualizando, setActualizando] = useState(false)
   const [animo, setAnimo] = useState<string>('bien')
-  const [lesiones, setLesiones] = useState<FichaIn['lesiones']>([])
-  const [parq, setParq] = useState<boolean[]>(Array(PREGUNTAS_PARQ.length).fill(false))
+  const [lesiones, setLesiones] = useState<FichaIn['lesiones']>(previa?.lesiones ?? [])
+  const [parq, setParq] = useState<boolean[]>(previa?.parq ?? Array(PREGUNTAS_PARQ.length).fill(false))
 
-  const alternar = (id: FichaIn['lesiones'][number]) =>
+  if (previa && !actualizando)
+    return (
+      <Confirmar
+        previa={previa}
+        cargando={estado.cargando}
+        error={estado.error}
+        alCerrarError={limpiarError}
+        alSeguirIgual={() => enviarFicha({ parq: previa.parq, lesiones: previa.lesiones })}
+        alActualizar={() => setActualizando(true)}
+      />
+    )
+
+  // Lo que ya estaba registrado no se puede quitar desde la estación (el backend también lo exige).
+  const lesionBloqueada = (id: string) => previa?.lesiones.includes(id) ?? false
+  const parqBloqueada = (i: number) => previa?.parq[i] ?? false
+  const opcionesLesion = [
+    ...LESIONES.map((l) => ({ id: l.id as string, texto: l.texto as string })),
+    ...(previa?.lesiones ?? []).filter((id) => !LESIONES.some((l) => l.id === id)).map((id) => ({ id, texto: NOMBRE_LESION[id] ?? id })),
+  ]
+
+  const alternar = (id: string) => {
+    if (lesionBloqueada(id)) return
     setLesiones((x) => (x.includes(id) ? x.filter((y) => y !== id) : [...x, id]))
+  }
 
   const enviar = () => {
     const respuestas = [...parq]
@@ -29,10 +56,7 @@ export function Salud() {
       paso={3}
       pie={
         <>
-          <p className="flex-1 rounded-2xl border border-naranja/50 bg-naranja/10 px-5 py-3 text-[19px] text-naranja">
-            🔒 La IA solo recibe el color de tu semáforo, no tus datos de salud.
-          </p>
-          <Boton disabled={estado.cargando} onClick={enviar}>
+          <Boton className="ml-auto" disabled={estado.cargando} onClick={enviar}>
             {estado.cargando ? 'Calculando…' : 'Ver mi semáforo'}
           </Boton>
         </>
@@ -51,12 +75,14 @@ export function Salud() {
           </div>
           <h2 className="mt-6 text-[26px] font-bold">¿Tienes alguna lesión?</h2>
           <div className="mt-3 flex flex-wrap gap-3">
-            {LESIONES.map((l) => (
-              <Chip key={l.id} activo={lesiones.includes(l.id)} onClick={() => alternar(l.id)}>
+            {opcionesLesion.map((l) => (
+              <Chip key={l.id} activo={lesiones.includes(l.id)} disabled={lesionBloqueada(l.id)} onClick={() => alternar(l.id)} className="disabled:opacity-100">
                 {l.texto}
+                {lesionBloqueada(l.id) && ' 🔒'}
               </Chip>
             ))}
           </div>
+          {(previa?.lesiones.length ?? 0) > 0 && <p className="mt-3 text-[18px] text-suave">🔒 Ya registrada. {TEXTO_BLOQUEO}.</p>}
           {estado.error && (
             <div className="mt-5">
               <Aviso onCerrar={limpiarError}>{estado.error}</Aviso>
@@ -69,8 +95,9 @@ export function Salud() {
             <div key={q} className="flex items-center gap-4 px-2" role="group" aria-label={`Pregunta ${i + 1}`}>
               <p className="flex-1 text-[18px] leading-snug">
                 {i + 1}. {q}
+                {parqBloqueada(i) && <span className="block text-[16px] text-suave">🔒 {TEXTO_BLOQUEO}</span>}
               </p>
-              <Chip className="!min-h-[48px] !px-5 !text-[20px]" activo={!parq[i]} onClick={() => setParq((p) => p.map((v, j) => (j === i ? false : v)))}>
+              <Chip className="!min-h-[48px] !px-5 !text-[20px]" activo={!parq[i]} disabled={parqBloqueada(i)} onClick={() => setParq((p) => p.map((v, j) => (j === i ? false : v)))}>
                 No
               </Chip>
               <Chip className="!min-h-[48px] !px-5 !text-[20px]" activo={parq[i]} onClick={() => setParq((p) => p.map((v, j) => (j === i ? true : v)))}>
@@ -79,6 +106,59 @@ export function Salud() {
             </div>
           ))}
         </div>
+      </div>
+    </Marco>
+  )
+}
+
+/** «¿Sigues igual que la última vez?»: muestra lo que ya está registrado y deja reutilizarlo o actualizarlo. */
+function Confirmar({
+  previa, cargando, error, alCerrarError, alSeguirIgual, alActualizar,
+}: {
+  previa: FichaPrevia
+  cargando: boolean
+  error: string | null
+  alCerrarError: () => void
+  alSeguirIgual: () => void
+  alActualizar: () => void
+}) {
+  const registradas = [
+    ...previa.lesiones.map((l) => `Lesión de ${(NOMBRE_LESION[l] ?? l).toLowerCase()}`),
+    ...PREGUNTAS_PARQ.filter((_, i) => previa.parq[i]),
+  ]
+  return (
+    <Marco
+      paso={3}
+      pie={
+        <>
+          <Boton variante="secundario" className="ml-auto" disabled={cargando} onClick={alActualizar}>
+            Actualizar
+          </Boton>
+          <Boton disabled={cargando} onClick={alSeguirIgual}>
+            {cargando ? 'Calculando…' : 'Sí, sigo igual'}
+          </Boton>
+        </>
+      }
+    >
+      <div className="mx-auto flex h-full max-w-3xl flex-col justify-center">
+        <h1 className="text-[44px] font-extrabold">¿Sigues igual que la última vez?</h1>
+        <div className="mt-6 rounded-3xl bg-tarjeta p-6">
+          <h2 className="text-[22px] font-bold text-suave">Esto es lo que tenemos registrado</h2>
+          {registradas.length === 0 ? (
+            <p className="mt-3 text-[22px]">Sin lesiones ni molestias.</p>
+          ) : (
+            <ul className="mt-3 space-y-2 text-[22px]">
+              {registradas.map((r) => (
+                <li key={r}>• {r}</li>
+              ))}
+            </ul>
+          )}
+        </div>
+        {error && (
+          <div className="mt-5">
+            <Aviso onCerrar={alCerrarError}>{error}</Aviso>
+          </div>
+        )}
       </div>
     </Marco>
   )

@@ -28,6 +28,22 @@ export interface FichaOut {
   maquinasExcluidas: string[]
 }
 
+/** GET /v1/socios/{id}/ficha-salud  (salud.py). `existe: false` si el socio aún no tiene ficha. */
+export type FichaGuardadaOut =
+  | { existe: false }
+  | {
+      existe: true
+      parq: boolean[]
+      lesiones: string[]
+      semaforo: Semaforo
+      motivos: string[]
+      requiereAptoMedico: boolean
+      maquinasExcluidas: string[]
+    }
+
+/** Ficha ya guardada del socio (lo que la estación precarga al identificarse). */
+export type FichaPrevia = Extract<FichaGuardadaOut, { existe: true }>
+
 export type EstadoRutina = 'activa' | 'pendiente_aprobacion' | 'rechazada' | 'requiere_apto_medico'
 
 export interface Ejercicio {
@@ -46,7 +62,7 @@ export interface RutinaOut {
   dias: { ejercicios: Ejercicio[] }[]
   estado: EstadoRutina
   alertas: string[]
-  detalle?: { algoritmo: 'a_estrella' | 'hill_climbing'; tiempoPerdidoEstimadoMin: number; sociosEnSala: number }
+  detalle?: { algoritmo: 'a_estrella' | 'hill_climbing'; tiempoPerdidoEstimadoMin: number; sociosEnSala: number } // la pantalla no lo muestra
 }
 
 /** GET /v1/prediccion/espera  (prediccion.py) */
@@ -85,7 +101,7 @@ export interface MedicionIn {
 
 export interface FichaIn {
   parq: boolean[] // exactamente 7 respuestas
-  lesiones: ('rodilla' | 'hombro' | 'espalda_baja' | 'cadera')[]
+  lesiones: string[] // rodilla | hombro | espalda_baja | cadera
   presion_sistolica?: number
   presion_diastolica?: number
   pulso_reposo?: number
@@ -163,6 +179,8 @@ export const abrirSesion = (datos: SesionIn) =>
 
 export const registrarMedicion = (socioId: string, m: MedicionIn) =>
   pedir<MedicionOut>('POST', `/socios/${encodeURIComponent(socioId)}/mediciones`, m)
+
+export const obtenerFicha = (socioId: string) => pedir<FichaGuardadaOut>('GET', `/socios/${encodeURIComponent(socioId)}/ficha-salud`)
 
 export const guardarFicha = (socioId: string, f: FichaIn) =>
   pedir<FichaOut>('PUT', `/socios/${encodeURIComponent(socioId)}/ficha-salud`, f)
