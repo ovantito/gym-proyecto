@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import statistics
 from collections import defaultdict
+from typing import Annotated
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -20,12 +22,24 @@ class MotivoIn(BaseModel):
     motivo: str = Field(min_length=3, max_length=200)
 
 
-def _filtro(actor: Actor) -> dict:
-    return {} if actor.rol == 'admin' else {'coach_id': actor.id}
+def _filtro(actor: Actor, coach_id: str | None = None) -> dict:
+    """Qué filas ve el actor. El admin ve todo o, con `coach_id`, el panel de ese coach («ver como»).
+    Un coach ve SIEMPRE lo suyo: si manda `coach_id` se ignora, para que no pueda espiar a otro coach."""
+    if actor.rol != 'admin':
+        return {'coach_id': actor.id}
+    return {'coach_id': coach_id} if coach_id else {}
 
 
-def _socios_visibles(repo, actor: Actor) -> list[dict]:
-    return repo.find('socios', **_filtro(actor))
+# Parámetro opcional ?coach_id=<uuid> de los listados (validado como UUID). Solo lo respeta el admin.
+CoachVista = Annotated[UUID | None, Query(description='Solo admin: ver el panel de este coach')]
+
+
+def _vista(coach_id: UUID | None) -> str | None:
+    return str(coach_id) if coach_id else None
+
+
+def _socios_visibles(repo, actor: Actor, coach_id: str | None = None) -> list[dict]:
+    return repo.find('socios', **_filtro(actor, coach_id))
 
 
 def _nombre(repo, socio_id: str | None) -> str:
@@ -35,9 +49,9 @@ def _nombre(repo, socio_id: str | None) -> str:
 
 # ------------------------------------------------------------------ alertas
 @router.get('/coach/alertas')
-def alertas(request: Request, actor: Actor = Depends(requiere('coach', 'admin'))):
+def alertas(request: Request, coach_id: CoachVista = None, actor: Actor = Depends(requiere('coach', 'admin'))):
     repo = request.app.state.repo
-    filas = repo.find('alertas', resuelta=False, **_filtro(actor))
+    filas = repo.find('alertas', resuelta=False, **_filtro(actor, _vista(coach_id)))
     for a in filas:
         a['socioNombre'] = _nombre(repo, a.get('socio_id'))
     return sorted(filas, key=lambda a: a['creada'], reverse=True)
@@ -94,10 +108,11 @@ def _vista_ficha(repo, socio: dict) -> dict:
 
 
 @router.get('/coach/fichas')
-def buscar_ficha(request: Request, dni: str = Query(pattern=r'^\d{8}$'), actor: Actor = Depends(requiere('coach', 'admin'))):
+def buscar_ficha(request: Request, dni: str = Query(pattern=r'^\d{8}$'), coach_id: CoachVista = None,
+                 actor: Actor = Depends(requiere('coach', 'admin'))):
     """Busca un socio por DNI entre los que el actor puede ver. Un socio de otro coach responde igual que uno inexistente."""
     repo = request.app.state.repo
-    socio = next(iter(repo.find('socios', dni=dni, **_filtro(actor))), None)
+    socio = next(iter(repo.find('socios', dni=dni, **_filtro(actor, _vista(coach_id)))), None)
     if socio is None:
         raise HTTPException(404, 'No encontramos ese DNI entre tus socios')
     return _vista_ficha(repo, socio)
@@ -157,9 +172,9 @@ def liberar_socio(request: Request, socio_id: str, datos: MotivoIn, actor: Actor
 
 # ------------------------------------------------------------------ rutinas por aprobar
 @router.get('/coach/rutinas-pendientes')
-def rutinas_pendientes(request: Request, actor: Actor = Depends(requiere('coach', 'admin'))):
+def rutinas_pendientes(request: Request, coach_id: CoachVista = None, actor: Actor = Depends(requiere('coach', 'admin'))):
     repo = request.app.state.repo
-    filas = repo.find('rutinas', estado='pendiente_aprobacion', **_filtro(actor))
+    filas = repo.find('rutinas', estado='pendiente_aprobacion', **_filtro(actor, _vista(coach_id)))
     for r in filas:
         ficha = (repo.find('fichas_salud', socio_id=r['socio_id']) or [{}])[0]
         r['socioNombre'] = _nombre(repo, r['socio_id'])
@@ -224,13 +239,15 @@ def _factores(s: dict, ref: dict) -> list[dict]:
 
 
 @router.get('/coach/socios')
-def socios_riesgo(request: Request, limite: int = 200, actor: Actor = Depends(requiere('coach', 'admin'))):
+def socios_riesgo(request: Request, limite: int = 200, coach_id: CoachVista = None,
+                  actor: Actor = Depends(requiere('coach', 'admin'))):
     repo = request.app.state.repo
     todos = repo.find('socios')
     ref = {'dias': statistics.median(s['dias_ultima_visita'] for s in todos) if todos else 0,
            'visitas': statistics.median(s['visitas_semana'] for s in todos) if todos else 0,
            'antig': statistics.median(s['antiguedad_meses'] for s in todos) if todos else 0}
-    propios = todos if actor.rol == 'admin' else [s for s in todos if s.get('coach_id') == actor.id]
+    f = _filtro(actor, _vista(coach_id))
+    propios = [s for s in todos if all(s.get(k) == v for k, v in f.items())]
     abiertas = {a['socio_id']: a['id'] for a in repo.find('alertas', tipo='abandono', resuelta=False)}
     analizados = [s for s in propios if s.get('riesgo_abandono') is not None]
     analizados.sort(key=lambda s: s['riesgo_abandono'], reverse=True)
@@ -242,10 +259,10 @@ def socios_riesgo(request: Request, limite: int = 200, actor: Actor = Depends(re
 
 # ------------------------------------------------------------------ perfiles (K-Means)
 @router.get('/coach/perfiles')
-def perfiles(request: Request, actor: Actor = Depends(requiere('coach', 'admin'))):
+def perfiles(request: Request, coach_id: CoachVista = None, actor: Actor = Depends(requiere('coach', 'admin'))):
     repo = request.app.state.repo
     grupos: dict[str, list[dict]] = defaultdict(list)
-    for s in _socios_visibles(repo, actor):
+    for s in _socios_visibles(repo, actor, _vista(coach_id)):
         if s.get('segmento'):
             grupos[s['segmento']].append(s)
     out = []
@@ -267,9 +284,9 @@ def falla_probable(m: dict) -> str:
 
 
 @router.get('/coach/mantenimiento')
-def mantenimiento(request: Request, actor: Actor = Depends(requiere('coach', 'admin'))):
+def mantenimiento(request: Request, coach_id: CoachVista = None, actor: Actor = Depends(requiere('coach', 'admin'))):
     repo = request.app.state.repo
-    visibles = {s['id'] for s in _socios_visibles(repo, actor)}
+    visibles = {s['id'] for s in _socios_visibles(repo, actor, _vista(coach_id))}
     por_estacion: dict[str, dict] = {}
     for m in repo.find('mediciones', atipica=True):
         if m['socio_id'] not in visibles:

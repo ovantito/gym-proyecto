@@ -2,6 +2,7 @@ import { useState } from 'react'
 import * as api from '../api/cliente'
 import type { Nivel, SocioRiesgo } from '../api/cliente'
 import { Boton, Estado, Etiqueta, nombrePerfil, Tarjeta, Titulo } from '../componentes/ui'
+import { useSesion } from '../estado/sesion'
 import { useCarga } from '../hooks'
 
 const COLOR_EFECTO = { sube: 'text-[#ffb4b6]', baja: 'text-sem-verde', neutro: 'text-suave' } as const
@@ -61,7 +62,8 @@ function Fila({ s, alAtender }: { s: SocioRiesgo; alAtender: () => void }) {
 }
 
 export function Riesgo({ clave }: { clave: number }) {
-  const carga = useCarga(api.sociosRiesgo, clave)
+  const { coachVista } = useSesion()
+  const carga = useCarga(() => api.sociosRiesgo(coachVista), `${clave}:${coachVista}`)
   const [filtro, setFiltro] = useState<Nivel | 'todos'>('todos')
   return (
     <>

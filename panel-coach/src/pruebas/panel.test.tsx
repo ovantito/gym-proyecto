@@ -12,6 +12,10 @@ const RUTINA = {
   dias: [{ ejercicios: [{ id: 'E-M-17', nombre: 'Plancha en banco', maquina: 'M-17', series: 2, repeticiones: 10, descansoSeg: 90 }] }],
 }
 const MEDICION = { pesoKg: 72.3, tallaCm: 170, imc: 25.0, grasaPct: 22, sistolica: 120, diastolica: 78, pulso: 68, fecha: '2026-11-26T15:00:00+00:00' }
+const COACHES = [
+  { id: 'c-1', nombre: 'Carlos Ramos', email: 'carlos@tnt.demo', activo: true, socios: 600, alertasAbiertas: 3, rutinasPendientes: 1 },
+  { id: 'c-2', nombre: 'Lucía Torres', email: 'lucia@tnt.demo', activo: true, socios: 580, alertasAbiertas: 0, rutinasPendientes: 0 },
+]
 const PARQ_NO = [false, false, false, false, false, false, false]
 const SOCIO = (n: string, p: number) => ({
   id: n, nombre: n, probabilidad: p, nivel: p > 0.6 ? 'alto' : 'bajo', segmento: 'nocturno_nuevo', alertaId: p > 0.6 ? `a-${n}` : null,
@@ -60,6 +64,8 @@ function instalar(o: Opciones = {}) {
         cambio: { antes: { parq: PARQ_NO, lesiones: ['rodilla'], semaforo: 'amarillo' }, despues: { parq: b.parq, lesiones: b.lesiones, semaforo: fichaActual.semaforo } } }]
       return ok(vistaFicha())
     }
+    if (ruta === '/admin/coaches') return ok(COACHES)
+    if (ruta === '/admin/coaches/c-1/traspasar' && metodo === 'POST') return ok({ sociosMovidos: 600, alertasMovidas: 3, rutinasMovidas: 1, loteId: 'l-1' })
     if (ruta === '/prediccion/abandono/lote') return ok({ procesados: 3000, alertasNuevas: 14, modelo: '1.0.0' })
     return ok({ detail: 'no encontrado' }, 404)
   }))
@@ -280,5 +286,54 @@ describe('bloqueo por semáforo rojo', () => {
     await u.click(within(form).getByRole('button', { name: 'Liberar socio' }))
     expect(await screen.findByText('Primero corrige la ficha: tiene una respuesta crítica del PAR-Q')).toBeInTheDocument()
     expect(screen.getByText(/Bloqueado por semáforo rojo/)).toBeInTheDocument()
+  })
+})
+
+describe('reasignación de coaches (solo admin)', () => {
+  it('el coach NO ve «Coaches y socios» ni el selector «Ver panel de»', async () => {
+    instalar({ rol: 'coach' })
+    const u = userEvent.setup()
+    render(<App />)
+    await entrar(u)
+    await screen.findByText('Rutinas por aprobar', { selector: 'h2' })
+    expect(screen.queryByRole('button', { name: 'Coaches y socios' })).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Ver panel de:')).not.toBeInTheDocument()
+  })
+
+  it('el admin ve la sección y el selector; al elegir un coach todo recarga con ?coach_id=', async () => {
+    const l = instalar({ rol: 'admin' })
+    const u = userEvent.setup()
+    render(<App />)
+    await entrar(u)
+    expect(await screen.findByRole('button', { name: 'Coaches y socios' })).toBeInTheDocument()
+    const selector = await screen.findByLabelText('Ver panel de:')
+    await screen.findByRole('option', { name: 'Lucía Torres' })
+    await u.selectOptions(selector, 'c-2')
+    expect(await screen.findByText('Estás viendo el panel de Lucía Torres')).toBeInTheDocument()
+    await waitFor(() => expect(l.some((x) => x.ruta === '/coach/rutinas-pendientes?coach_id=c-2')).toBe(true))
+    await u.click(screen.getByRole('button', { name: 'Riesgo de abandono' }))
+    await waitFor(() => expect(l.some((x) => x.ruta === '/coach/socios?limite=100&coach_id=c-2')).toBe(true))
+  })
+
+  it('el traspaso pide confirmación dentro de la página antes de llamar a la API', async () => {
+    const l = instalar({ rol: 'admin' })
+    const u = userEvent.setup()
+    render(<App />)
+    await entrar(u)
+    await u.click(await screen.findByRole('button', { name: 'Coaches y socios' }))
+    const form = await screen.findByRole('form', { name: 'Traspasar socios' })
+    await u.selectOptions(within(form).getByLabelText('Coach de origen'), 'c-1')
+    await u.selectOptions(within(form).getByLabelText('Coach de destino'), 'c-2')
+    await u.click(within(form).getByRole('button', { name: 'Renuncia' }))
+    await u.click(within(form).getByLabelText('Desactivar al coach de origen'))
+    await u.click(within(form).getByRole('button', { name: 'Traspasar' }))
+
+    expect(l.some((x) => x.ruta.includes('traspasar'))).toBe(false) // todavía nada: falta confirmar
+    const confirmar = await screen.findByRole('button', { name: 'Sí, traspasar 600 socios' })
+    await u.click(confirmar)
+    await waitFor(() =>
+      expect(l.find((x) => x.ruta === '/admin/coaches/c-1/traspasar')?.body).toEqual({ coach_destino_id: 'c-2', motivo: 'Renuncia', desactivar_origen: true }),
+    )
+    expect(await screen.findByText('Se movieron 600 socios, 3 alertas y 1 rutinas.')).toBeInTheDocument()
   })
 })

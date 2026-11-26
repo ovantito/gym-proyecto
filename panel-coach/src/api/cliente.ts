@@ -152,6 +152,41 @@ export interface FichaSocioOut {
   historial: CambioFicha[]
 }
 
+/** GET /v1/admin/coaches */
+export interface CoachAdmin {
+  id: string
+  nombre: string
+  email: string
+  activo: boolean
+  socios: number
+  alertasAbiertas: number
+  rutinasPendientes: number
+}
+
+interface CoachRef {
+  id: string | null
+  nombre: string | null
+}
+
+/** GET /v1/admin/socios?dni=…  y  POST /v1/admin/socios/{id}/reasignar */
+export interface SocioAdmin {
+  id: string
+  nombre: string
+  dni: string | null
+  plan: string | null
+  semaforo: Semaforo | null
+  coach: CoachRef
+  historial: { id: string; fecha: string; motivo: string; loteId: string | null; coachAntes: CoachRef; coachDespues: CoachRef }[]
+}
+
+/** POST /v1/admin/coaches/{id}/traspasar */
+export interface TraspasoOut {
+  sociosMovidos: number
+  alertasMovidas: number
+  rutinasMovidas: number
+  loteId: string
+}
+
 // ---------------------------------------------------------------- errores y núcleo
 export class ErrorApi extends Error {
   constructor(
@@ -186,7 +221,7 @@ function mensaje(estado: number, detalle: unknown): string {
   return 'Algo salió mal, intenta de nuevo.'
 }
 
-async function pedir<T>(metodo: 'GET' | 'POST' | 'PUT', ruta: string, cuerpo?: unknown): Promise<T> {
+async function pedir<T>(metodo: 'GET' | 'POST' | 'PUT' | 'PATCH', ruta: string, cuerpo?: unknown): Promise<T> {
   let r: Response
   try {
     r = await fetch(`${BASE}/v1${ruta}`, {
@@ -213,20 +248,41 @@ async function pedir<T>(metodo: 'GET' | 'POST' | 'PUT', ruta: string, cuerpo?: u
   return datos as T
 }
 
+/** `?coach_id=` (o `&coach_id=`) para que el admin vea el panel de un coach. Vacío si no hay coach elegido. */
+const filtroCoach = (coachId?: string | null, sep: '?' | '&' = '?') => (coachId ? `${sep}coach_id=${encodeURIComponent(coachId)}` : '')
+
 // ---------------------------------------------------------------- llamadas
 export const login = (email: string, password: string) => pedir<LoginOut>('POST', '/auth/login', { email, password })
-export const rutinasPendientes = () => pedir<RutinaPendiente[]>('GET', '/coach/rutinas-pendientes')
+export const rutinasPendientes = (coachId?: string | null) =>
+  pedir<RutinaPendiente[]>('GET', `/coach/rutinas-pendientes${filtroCoach(coachId)}`)
 export const aprobarRutina = (id: string) => pedir<unknown>('POST', `/coach/rutinas/${encodeURIComponent(id)}/aprobar`)
 export const rechazarRutina = (id: string, motivo: string) =>
   pedir<unknown>('POST', `/coach/rutinas/${encodeURIComponent(id)}/rechazar`, { motivo })
-export const sociosRiesgo = () => pedir<SociosRiesgoOut>('GET', '/coach/socios?limite=100')
+export const sociosRiesgo = (coachId?: string | null) =>
+  pedir<SociosRiesgoOut>('GET', `/coach/socios?limite=100${filtroCoach(coachId, '&')}`)
 export const registrarContacto = (alertaId: string) => pedir<unknown>('POST', `/coach/alertas/${encodeURIComponent(alertaId)}/atender`)
-export const perfiles = () => pedir<PerfilesOut>('GET', '/coach/perfiles')
-export const mantenimiento = () => pedir<MantenimientoOut>('GET', '/coach/mantenimiento')
+export const perfiles = (coachId?: string | null) => pedir<PerfilesOut>('GET', `/coach/perfiles${filtroCoach(coachId)}`)
+export const mantenimiento = (coachId?: string | null) =>
+  pedir<MantenimientoOut>('GET', `/coach/mantenimiento${filtroCoach(coachId)}`)
 export const modelo = () => pedir<ModeloOut>('GET', '/coach/modelo')
 export const ejecutarAnalisisNocturno = () => pedir<LoteOut>('POST', '/prediccion/abandono/lote')
-export const buscarFicha = (dni: string) => pedir<FichaSocioOut>('GET', `/coach/fichas?dni=${encodeURIComponent(dni)}`)
+export const buscarFicha = (dni: string, coachId?: string | null) =>
+  pedir<FichaSocioOut>('GET', `/coach/fichas?dni=${encodeURIComponent(dni)}${filtroCoach(coachId, '&')}`)
 export const corregirFicha = (socioId: string, cambio: { parq: boolean[]; lesiones: Lesion[]; motivo: string }) =>
   pedir<FichaSocioOut>('PUT', `/coach/fichas/${encodeURIComponent(socioId)}`, cambio)
 export const liberarSocio = (socioId: string, motivo: string) =>
   pedir<FichaSocioOut>('POST', `/coach/fichas/${encodeURIComponent(socioId)}/liberar`, { motivo })
+
+// ---- solo admin
+export const listarCoaches = () => pedir<CoachAdmin[]>('GET', '/admin/coaches')
+export const buscarSocioAdmin = (dni: string) => pedir<SocioAdmin>('GET', `/admin/socios?dni=${encodeURIComponent(dni)}`)
+export const reasignarSocio = (socioId: string, coachId: string, motivo: string) =>
+  pedir<SocioAdmin>('POST', `/admin/socios/${encodeURIComponent(socioId)}/reasignar`, { coach_id: coachId, motivo })
+export const traspasarCoach = (origenId: string, destinoId: string, motivo: string, desactivarOrigen: boolean) =>
+  pedir<TraspasoOut>('POST', `/admin/coaches/${encodeURIComponent(origenId)}/traspasar`, {
+    coach_destino_id: destinoId,
+    motivo,
+    desactivar_origen: desactivarOrigen,
+  })
+export const cambiarEstadoCoach = (coachId: string, activo: boolean) =>
+  pedir<unknown>('PATCH', `/admin/coaches/${encodeURIComponent(coachId)}`, { activo })

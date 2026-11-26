@@ -8,6 +8,7 @@ from __future__ import annotations
 import secrets
 import uuid
 
+from app.core.repositorio import ahora
 from app.core.seguridad import generar_clave_estacion, hash_clave
 from ml.datos import generar_datos
 
@@ -30,9 +31,16 @@ def socios_simulados(coaches: list[str] | None = None) -> list[dict]:
     return filas
 
 
+def _registrar_coach(repo, coach_id: str, nombre: str, email: str) -> None:
+    repo.upsert('coaches', {'id': coach_id, 'nombre': nombre, 'email': email, 'activo': True, 'creado': ahora()}, 'id')
+
+
 def sembrar(repo, clave_estacion: str | None = None, coaches: list[str] | None = None) -> tuple[dict, str]:
     """Carga socios + una estación. Devuelve (estación, clave en claro; solo se muestra una vez)."""
     repo.insert_muchos('socios', socios_simulados(coaches))
+    if repo.nombre == 'memoria':   # en Supabase los coaches salen de Auth (ver supabase/seed.py)
+        for i, cid in enumerate(coaches or COACHES):
+            _registrar_coach(repo, cid, f'Coach {i + 1}', f'coach{i + 1}@tnt.demo')
     clave = clave_estacion or generar_clave_estacion()
     est = repo.insert('estaciones', {'nombre': 'Estación piloto', 'clave_hash': hash_clave(clave), 'activa': True})
     return est, clave
@@ -50,5 +58,7 @@ def sembrar_usuarios(repo, pass_coach: str | None = None, pass_admin: str | None
     for email, pw, rol, nombre, uid in demo:
         sal, h = hash_password(pw)
         repo.insert('usuarios', {'email': email, 'sal': sal, 'password_hash': h, 'rol': rol, 'nombre': nombre, 'user_id': uid})
+        if rol == 'coach' and repo.nombre == 'memoria':
+            _registrar_coach(repo, uid, nombre, email)
         salida.append({'email': email, 'password': pw, 'rol': rol})
     return salida

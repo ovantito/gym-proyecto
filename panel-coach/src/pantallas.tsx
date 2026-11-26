@@ -1,8 +1,10 @@
 import { useState, type FormEvent } from 'react'
-import { ejecutarAnalisisNocturno, ErrorApi, type LoteOut } from './api/cliente'
+import { ejecutarAnalisisNocturno, ErrorApi, listarCoaches, type LoteOut } from './api/cliente'
 import { Boton } from './componentes/ui'
 import { useSesion } from './estado/sesion'
+import { useCarga } from './hooks'
 import { Aprobar } from './secciones/Aprobar'
+import { Coaches } from './secciones/Coaches'
 import { Fichas } from './secciones/Fichas'
 import { Mantenimiento } from './secciones/Mantenimiento'
 import { Modelo } from './secciones/Modelo'
@@ -65,11 +67,44 @@ const SECCIONES = [
   { id: 'perfiles', texto: 'Perfiles de socio' },
   { id: 'mantenimiento', texto: 'Estaciones y mantenimiento' },
   { id: 'modelo', texto: 'Modelo de IA' },
-] as const
-type Id = (typeof SECCIONES)[number]['id']
+  { id: 'coaches', texto: 'Coaches y socios', soloAdmin: true },
+] as readonly { id: string; texto: string; soloAdmin?: boolean }[]
+type Id = string
+
+/** Solo admin: «Ver panel de» otro coach. Todas las secciones recargan con ese filtro. */
+function SelectorCoach({ clave }: { clave: number }) {
+  const { coachVista, fijarCoachVista } = useSesion()
+  const carga = useCarga(listarCoaches, clave)
+  const coaches = carga.datos ?? []
+  const elegido = coaches.find((c) => c.id === coachVista)
+  return (
+    <div className="mb-6 rounded-2xl bg-tarjeta px-5 py-3">
+      <label className="flex items-center gap-3 text-[15px] font-semibold">
+        Ver panel de:
+        <select
+          className="rounded-xl border border-borde bg-fondo px-3 py-2 text-[15px] text-texto outline-none focus:border-naranja"
+          value={coachVista ?? ''}
+          onChange={(e) => fijarCoachVista(e.target.value || null)}
+        >
+          <option value="">Todos los coaches</option>
+          {coaches.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.nombre}
+            </option>
+          ))}
+        </select>
+      </label>
+      {coachVista && (
+        <p role="status" className="mt-2 text-[15px] font-semibold text-sem-amarillo">
+          Estás viendo el panel de {elegido?.nombre ?? 'otro coach'}
+        </p>
+      )}
+    </div>
+  )
+}
 
 export function Panel() {
-  const { usuario, salir } = useSesion()
+  const { usuario, salir, coachVista } = useSesion()
   const [seccion, setSeccion] = useState<Id>('aprobar')
   const [clave, setClave] = useState(0) // cambia tras el análisis nocturno para recargar todo
   const [ejecutando, setEjecutando] = useState(false)
@@ -96,7 +131,7 @@ export function Panel() {
         <p className="text-[14px] font-bold tracking-[0.18em] text-naranja">TNT FIT</p>
         <p className="text-[18px] font-extrabold">Panel del coach</p>
         <nav className="mt-8 flex flex-1 flex-col gap-1" aria-label="Secciones">
-          {SECCIONES.map((s) => (
+          {SECCIONES.filter((s) => !s.soloAdmin || esAdmin).map((s) => (
             <button
               key={s.id}
               type="button"
@@ -117,6 +152,7 @@ export function Panel() {
         </div>
       </aside>
       <main className="flex-1 overflow-y-auto p-8">
+        {esAdmin && <SelectorCoach clave={clave} />}
         {esAdmin && (
           <div className="mb-6 flex items-center gap-4 rounded-2xl bg-tarjeta px-5 py-3">
             <Boton className="shrink-0 whitespace-nowrap" disabled={ejecutando} onClick={correrAnalisis}>
@@ -131,11 +167,12 @@ export function Panel() {
           </div>
         )}
         {seccion === 'aprobar' && <Aprobar clave={clave} />}
-        {seccion === 'fichas' && <Fichas />}
+        {seccion === 'fichas' && <Fichas key={coachVista ?? 'todos'} />}
         {seccion === 'riesgo' && <Riesgo clave={clave} />}
         {seccion === 'perfiles' && <Perfiles clave={clave} />}
         {seccion === 'mantenimiento' && <Mantenimiento clave={clave} />}
         {seccion === 'modelo' && <Modelo clave={clave} />}
+        {seccion === 'coaches' && esAdmin && <Coaches clave={clave} alCambiar={() => setClave((c) => c + 1)} />}
       </main>
     </div>
   )

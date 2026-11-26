@@ -14,7 +14,7 @@ from app.core.limites import limiter
 from app.core.modelos import cargar_modelos
 from app.core.repositorio import RepoMemoria, RepoSupabase, ahora
 from app.core.semilla import sembrar, sembrar_usuarios
-from app.modulos import auth, coach, estacion, prediccion, rutinas, salud
+from app.modulos import admin, auth, coach, estacion, prediccion, rutinas, salud
 
 
 def _registrar_version(repo, modelos) -> None:
@@ -51,9 +51,9 @@ def create_app(settings: Settings | None = None, repo=None) -> FastAPI:
     app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
     app.add_middleware(SlowAPIMiddleware)
     app.add_middleware(CORSMiddleware, allow_origins=cfg.origenes_cors, allow_credentials=False,
-                       allow_methods=['GET', 'POST', 'PUT'], allow_headers=['Authorization', 'Content-Type', 'X-Station-Key'])
+                       allow_methods=['GET', 'POST', 'PUT', 'PATCH'], allow_headers=['Authorization', 'Content-Type', 'X-Station-Key'])
 
-    for m in (auth, estacion, salud, rutinas, prediccion, coach):
+    for m in (auth, estacion, salud, rutinas, prediccion, coach, admin):
         app.include_router(m.router, prefix='/v1')
 
     @app.get('/v1/salud', tags=['sistema'])
