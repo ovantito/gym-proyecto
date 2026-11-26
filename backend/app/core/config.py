@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     supabase_secret_key: str | None = None   # sb_secret_...: SOLO backend/.env y Render; jamás en un frontend
     supabase_jwt_secret: str | None = None
     supabase_publishable_key: str | None = None   # sb_publishable_...: pública; el login del panel contra Supabase Auth
+    supabase_jwks_url: str | None = None   # por defecto: <SUPABASE_URL>/auth/v1/.well-known/jwks.json
     jwt_audience: str = 'authenticated'
     # CORS: dominios del frontend separados por coma. Vacío = ninguno permitido.
     cors_origins: str = ''
@@ -48,6 +49,12 @@ class Settings(BaseSettings):
         if not lista and self.entorno == 'dev':   # desarrollo: estación (5173) y panel del coach (5174)
             return ['http://localhost:5173', 'http://127.0.0.1:5173', 'http://localhost:5174', 'http://127.0.0.1:5174']
         return lista
+
+    @property
+    def jwks_url_efectiva(self) -> str | None:
+        if self.supabase_jwks_url:
+            return self.supabase_jwks_url
+        return f'{self.supabase_url.rstrip("/")}/auth/v1/.well-known/jwks.json' if self.supabase_url else None
 
     @property
     def usa_supabase(self) -> bool:

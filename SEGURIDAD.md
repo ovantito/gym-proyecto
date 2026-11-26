@@ -77,8 +77,9 @@ una sesión abierta con ese socio. Rechazar guarda el motivo, que se muestra en 
   Las claves `sb_secret_` no son JWT, por eso el backend las manda solo en la cabecera `apikey`.
 - Hay una **prueba automática** que falla si `estacion/` o `panel-coach/` mencionan la secret key.
 - Los frontends no hablan con Supabase: solo con el backend (`VITE_API_URL`). No necesitan `VITE_SUPABASE_*`.
-- Si el proyecto usa las *JWT signing keys* nuevas (asimétricas), los tokens no se firman con un secreto HS256 y `SUPABASE_JWT_SECRET` no sirve para validarlos:
-  habría que verificar con las claves públicas (JWKS) en `decodificar_jwt`. Pendiente hasta probar con el proyecto real.
+- **JWT de Supabase con claves asimétricas (ES256):** el backend baja las claves públicas de `<SUPABASE_URL>/auth/v1/.well-known/jwks.json` (con caché) y verifica la firma con ellas;
+  no necesita ningún secreto para validar tokens. HS256 solo se acepta si hay `SUPABASE_JWT_SECRET` (modo demo). El algoritmo se elige por lo que el servidor tiene configurado, no por lo que
+  diga el token, y `alg: none` se rechaza (hay pruebas).
 
 ## Pendientes conocidos (fuera de esta fase)
 HTTPS lo pone el despliegue (proxy/hosting). Rotación automática de claves de estación y auditoría de accesos a fichas de salud
