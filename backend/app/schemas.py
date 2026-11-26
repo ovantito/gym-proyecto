@@ -29,6 +29,7 @@ class MedicionIn(Estricto):
     presion_sistolica: int = Field(ge=60, le=260)
     presion_diastolica: int = Field(ge=30, le=160)
     pulso_reposo: int = Field(ge=30, le=220)
+    talla_cm: float | None = Field(default=None, ge=120, le=220)   # tallímetro de la estación
     duracion_seg: float = Field(default=210, ge=1, le=3600)
     sesion_id: str | None = Field(default=None, max_length=64)
 

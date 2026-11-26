@@ -18,6 +18,7 @@ function Metrica({ valor, unidad, nombre }: { valor?: number; unidad: string; no
 export function Medicion() {
   const { estado, medir, irA, limpiarError } = useFlujo()
   const l = estado.lectura ?? undefined
+  const imc = l ? Math.round((l.peso / (l.talla / 100) ** 2) * 10) / 10 : undefined
   return (
     <Marco
       paso={2}
@@ -39,9 +40,11 @@ export function Medicion() {
       }
     >
       <h1 className="text-[48px] font-extrabold">Hola, {estado.socio?.nombre}</h1>
-      <p className="mt-1 text-[24px] text-suave">Párate en la báscula y sostén los sensores de las manos.</p>
-      <div className="mt-6 grid grid-cols-4 gap-4">
+      <p className="mt-1 text-[24px] text-suave">Párate derecho en la báscula, bajo el tallímetro, y sostén los sensores de las manos.</p>
+      <div className="mt-6 grid grid-cols-3 gap-4">
         <Metrica valor={l?.peso} unidad="kg" nombre="Peso" />
+        <Metrica valor={l?.talla} unidad="cm" nombre="Talla" />
+        <Metrica valor={imc} unidad="" nombre="IMC" />
         <Metrica valor={l?.grasa} unidad="%" nombre="Grasa corporal" />
         <Metrica valor={l?.musculo} unidad="kg" nombre="Masa muscular" />
         <Metrica valor={l?.pulso} unidad="lpm" nombre="Pulso" />

@@ -102,10 +102,11 @@ def registrar_medicion(request: Request, socio_id: str, m: MedicionIn,
     d_peso = m.peso_kg - previa['peso_kg'] if previa else 0.0
     d_grasa = m.grasa_pct - previa['grasa_pct'] if previa else 0.0
     atipica = es_atipica(modelos, d_peso, d_grasa, m.presion_sistolica, m.duracion_seg)
+    imc = round(m.peso_kg / (m.talla_cm / 100) ** 2, 1) if m.talla_cm else None
     fila = repo.insert('mediciones', {
         'socio_id': socio_id, 'sesion_id': m.sesion_id, 'peso_kg': m.peso_kg, 'grasa_pct': m.grasa_pct,
         'presion_sistolica': m.presion_sistolica, 'presion_diastolica': m.presion_diastolica,
-        'pulso_reposo': m.pulso_reposo, 'delta_peso_kg': round(d_peso, 2), 'delta_grasa_pct': round(d_grasa, 2),
+        'pulso_reposo': m.pulso_reposo, 'talla_cm': m.talla_cm, 'imc': imc, 'delta_peso_kg': round(d_peso, 2), 'delta_grasa_pct': round(d_grasa, 2),
         'duracion_seg': m.duracion_seg, 'atipica': atipica, 'usada': not atipica, 'fecha': ahora()})
     if atipica:   # no se usa para nada y se avisa a mantenimiento
         _alerta(repo, socio, 'mantenimiento', 'media',
@@ -116,7 +117,7 @@ def registrar_medicion(request: Request, socio_id: str, m: MedicionIn,
     if ficha:   # presión y pulso nuevos pueden cambiar el color
         f = ficha[0]
         _aplicar_ficha(repo, socio_id, f['parq'], f['lesiones'], m.presion_sistolica, m.presion_diastolica, m.pulso_reposo)
-    return {'medicionId': fila['id'], 'atipica': False, 'usada': True}
+    return {'medicionId': fila['id'], 'atipica': False, 'usada': True, 'imc': imc}
 
 
 @router.get('/socios/{socio_id}/ficha-salud')
