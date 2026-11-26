@@ -21,7 +21,7 @@ Requiere Python 3.11+ (probado en 3.12).
 ```bash
 python -m venv .venv
 source .venv/bin/activate          # Windows: .venv\Scripts\activate
-pip install -r backend/requirements.txt     # incluye ml/requirements.txt
+pip install -r backend/requirements-dev.txt # runtime + pytest y ruff (en producción solo requirements.txt)
 cp .env.example .env                        # y completa lo que uses (todo es opcional para la demo)
 ```
 
@@ -155,3 +155,7 @@ arrancar** (o define `DEMO_COACH_PASSWORD` / `DEMO_ADMIN_PASSWORD`). Con Supabas
 Endpoints nuevos (prefijo `/v1`): `POST /auth/login`, `GET /coach/socios`, `GET /coach/perfiles`, `GET /coach/mantenimiento`, `GET /coach/modelo`,
 `POST /coach/alertas/{id}/atender`, `POST /coach/rutinas/{id}/rechazar`, `GET /rutinas/{id}` (la estación consulta si el coach aprobó) y
 `GET /ejercicios/{id}/ver` (público, redirige 302 a una URL firmada nueva: es lo que lleva el QR del ticket).
+
+## Despliegue
+
+Ver `DESPLIEGUE.md` (Render para el backend con `render.yaml`, Vercel para la estación y el panel, y la lista de variables de entorno).

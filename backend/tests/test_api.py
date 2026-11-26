@@ -156,3 +156,11 @@ def test_cors_permite_la_estacion_en_desarrollo_y_bloquea_otros(client):
     assert 'x-station-key' in ok.headers.get('access-control-allow-headers', '').lower()
     malo = client.options('/v1/salud', headers={'Origin': 'https://sitio-malo.example', **pedido})
     assert 'access-control-allow-origin' not in malo.headers
+
+
+def test_en_produccion_no_arranca_en_modo_demo_sin_supabase():
+    import pytest
+    from app.core.config import Settings
+    from app.main import create_app
+    with pytest.raises(RuntimeError, match='ENTORNO=prod'):
+        create_app(Settings(entorno='prod', supabase_url=None, supabase_secret_key=None, _env_file=None))

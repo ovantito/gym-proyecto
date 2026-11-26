@@ -87,3 +87,12 @@ porque ya no influye en el abandono simulado. (Con la versión vieja de los dato
 - **QR permanente:** el ticket usa `GET /v1/ejercicios/{id}/ver` (público, 302, 30 peticiones/min). Reemplaza la decisión anterior del QR con URL firmada que caducaba.
 - **Presión alta:** botón "Simular presión alta" = 165/102 con el resto normal; el modelo Mean-Shift no la marca como atípica (hay prueba) y las reglas fijas dan rojo.
 - **Panel sin dependencia de estado global:** `useCarga` (carga + recarga silenciosa cada 5–10 s en Aprobar y Mantenimiento para ver cambios casi en vivo).
+
+## Videos, despliegue y pruebas reales
+- **Videos de R2:** el bucket organiza los videos por grupo muscular con nombres descriptivos, no por código de máquina. `backend/app/core/videos.py` asigna uno a cada máquina; 6 son "el más parecido"
+  (M-02, M-03, M-07, M-11, M-16, M-17) y están marcados `(~)`. Las claves de R2 con acentos se firman bien con boto3.
+- **`R2_ACCOUNT_ID`** acepta por error la URL completa del endpoint: se extrae el ID de 32 caracteres.
+- **Prueba real (Supabase + R2):** estación (rodilla) → amarillo → coach aprueba en el panel → la estación cambia sola (~5–6 s) → ticket → el QR (`/v1/ejercicios/E-M-17/ver`) se decodificó de la
+  imagen del ticket y se abrió: redirige a R2 y el video se reprodujo (29 s, 720×1280). Los favicon que faltaban daban 404 en consola; se agregó un favicon vacío.
+- **Dependencias:** `backend/requirements.txt` solo tiene lo de producción; pytest y ruff pasaron a `requirements-dev.txt` (el CI usa este). Se validó el build de Render en un entorno limpio.
+- **Render:** el build entrena los modelos (`ml/entrenar.py`) porque los `.joblib` no se versionan. `PYTHON_VERSION=3.12.10` va en `render.yaml` (no es secreto); el resto de variables solo en el panel.
