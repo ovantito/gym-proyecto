@@ -1,0 +1,10 @@
+line-length = 140
+target-version = "py311"
+extend-exclude = [".venv"]
+
+[lint]
+select = ["E", "F", "I", "B"]
+ignore = ["B008"]   # Depends()/Query() en argumentos es el patrón normal de FastAPI
+
+[lint.per-file-ignores]
+"backend/tests/*" = ["E402"]
