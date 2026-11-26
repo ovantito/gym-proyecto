@@ -8,7 +8,8 @@ create extension if not exists pgcrypto;
 
 -- ---------- helpers de rol ----------
 create or replace function public.rol_actual() returns text
-language sql stable as $$ select coalesce(auth.jwt() -> 'app_metadata' ->> 'role', '') $$;
+language sql stable set search_path = ''
+as $$ select coalesce(auth.jwt() -> 'app_metadata' ->> 'role', '') $$;
 
 -- ---------- tablas ----------
 create table if not exists public.socios (
@@ -105,37 +106,54 @@ alter table public.alertas enable row level security;
 alter table public.modelos_version enable row level security;
 
 -- socios: el coach ve solo a sus socios; el socio, su propia fila; admin todo.
-create policy socios_coach on public.socios for select using (rol_actual() = 'coach' and coach_id = auth.uid());
-create policy socios_propio on public.socios for select using (rol_actual() = 'socio' and user_id = auth.uid());
-create policy socios_admin on public.socios for all using (rol_actual() = 'admin') with check (rol_actual() = 'admin');
+create policy socios_coach on public.socios for select to authenticated using ((select public.rol_actual()) = 'coach' and coach_id = (select auth.uid()));
+create policy socios_propio on public.socios for select to authenticated using ((select public.rol_actual()) = 'socio' and user_id = (select auth.uid()));
+create policy socios_admin on public.socios for all to authenticated using ((select public.rol_actual()) = 'admin') with check ((select public.rol_actual()) = 'admin');
 
 -- Tablas hijas: se accede según el coach del socio dueño del dato.
-create policy sesiones_coach on public.sesiones for select using (rol_actual() = 'coach' and exists
-  (select 1 from public.socios s where s.id = socio_id and s.coach_id = auth.uid()));
-create policy mediciones_coach on public.mediciones for select using (rol_actual() = 'coach' and exists
-  (select 1 from public.socios s where s.id = socio_id and s.coach_id = auth.uid()));
-create policy mediciones_propia on public.mediciones for select using (rol_actual() = 'socio' and exists
-  (select 1 from public.socios s where s.id = socio_id and s.user_id = auth.uid()));
-create policy fichas_coach on public.fichas_salud for select using (rol_actual() = 'coach' and exists
-  (select 1 from public.socios s where s.id = socio_id and s.coach_id = auth.uid()));
-create policy fichas_propia on public.fichas_salud for select using (rol_actual() = 'socio' and exists
-  (select 1 from public.socios s where s.id = socio_id and s.user_id = auth.uid()));
-create policy rutinas_coach on public.rutinas for select using (rol_actual() = 'coach' and coach_id = auth.uid());
-create policy rutinas_coach_aprueba on public.rutinas for update using (rol_actual() = 'coach' and coach_id = auth.uid())
-  with check (rol_actual() = 'coach' and coach_id = auth.uid());
-create policy rutinas_propia on public.rutinas for select using (rol_actual() = 'socio' and exists
-  (select 1 from public.socios s where s.id = socio_id and s.user_id = auth.uid()));
-create policy alertas_coach on public.alertas for select using (rol_actual() = 'coach' and coach_id = auth.uid());
-create policy alertas_coach_resuelve on public.alertas for update using (rol_actual() = 'coach' and coach_id = auth.uid())
-  with check (rol_actual() = 'coach' and coach_id = auth.uid());
+create policy sesiones_coach on public.sesiones for select to authenticated using ((select public.rol_actual()) = 'coach' and exists
+  (select 1 from public.socios s where s.id = socio_id and s.coach_id = (select auth.uid())));
+create policy mediciones_coach on public.mediciones for select to authenticated using ((select public.rol_actual()) = 'coach' and exists
+  (select 1 from public.socios s where s.id = socio_id and s.coach_id = (select auth.uid())));
+create policy mediciones_propia on public.mediciones for select to authenticated using ((select public.rol_actual()) = 'socio' and exists
+  (select 1 from public.socios s where s.id = socio_id and s.user_id = (select auth.uid())));
+create policy fichas_coach on public.fichas_salud for select to authenticated using ((select public.rol_actual()) = 'coach' and exists
+  (select 1 from public.socios s where s.id = socio_id and s.coach_id = (select auth.uid())));
+create policy fichas_propia on public.fichas_salud for select to authenticated using ((select public.rol_actual()) = 'socio' and exists
+  (select 1 from public.socios s where s.id = socio_id and s.user_id = (select auth.uid())));
+create policy rutinas_coach on public.rutinas for select to authenticated using ((select public.rol_actual()) = 'coach' and coach_id = (select auth.uid()));
+create policy rutinas_coach_aprueba on public.rutinas for update to authenticated using ((select public.rol_actual()) = 'coach' and coach_id = (select auth.uid()))
+  with check ((select public.rol_actual()) = 'coach' and coach_id = (select auth.uid()));
+create policy rutinas_propia on public.rutinas for select to authenticated using ((select public.rol_actual()) = 'socio' and exists
+  (select 1 from public.socios s where s.id = socio_id and s.user_id = (select auth.uid())));
+create policy alertas_coach on public.alertas for select to authenticated using ((select public.rol_actual()) = 'coach' and coach_id = (select auth.uid()));
+create policy alertas_coach_resuelve on public.alertas for update to authenticated using ((select public.rol_actual()) = 'coach' and coach_id = (select auth.uid()))
+  with check ((select public.rol_actual()) = 'coach' and coach_id = (select auth.uid()));
 
 -- admin: acceso total a las demás tablas. Estaciones y versiones de modelos: solo admin.
-create policy sesiones_admin on public.sesiones for all using (rol_actual() = 'admin') with check (rol_actual() = 'admin');
-create policy mediciones_admin on public.mediciones for all using (rol_actual() = 'admin') with check (rol_actual() = 'admin');
-create policy fichas_admin on public.fichas_salud for all using (rol_actual() = 'admin') with check (rol_actual() = 'admin');
-create policy rutinas_admin on public.rutinas for all using (rol_actual() = 'admin') with check (rol_actual() = 'admin');
-create policy alertas_admin on public.alertas for all using (rol_actual() = 'admin') with check (rol_actual() = 'admin');
-create policy estaciones_admin on public.estaciones for all using (rol_actual() = 'admin') with check (rol_actual() = 'admin');
-create policy modelos_admin on public.modelos_version for all using (rol_actual() = 'admin') with check (rol_actual() = 'admin');
-create policy modelos_lectura on public.modelos_version for select using (rol_actual() in ('coach','admin'));
--- Sin política = sin acceso: la clave publishable (rol anon) y la estación nunca leen tablas directamente.
+create policy sesiones_admin on public.sesiones for all to authenticated using ((select public.rol_actual()) = 'admin') with check ((select public.rol_actual()) = 'admin');
+create policy mediciones_admin on public.mediciones for all to authenticated using ((select public.rol_actual()) = 'admin') with check ((select public.rol_actual()) = 'admin');
+create policy fichas_admin on public.fichas_salud for all to authenticated using ((select public.rol_actual()) = 'admin') with check ((select public.rol_actual()) = 'admin');
+create policy rutinas_admin on public.rutinas for all to authenticated using ((select public.rol_actual()) = 'admin') with check ((select public.rol_actual()) = 'admin');
+create policy alertas_admin on public.alertas for all to authenticated using ((select public.rol_actual()) = 'admin') with check ((select public.rol_actual()) = 'admin');
+create policy estaciones_admin on public.estaciones for all to authenticated using ((select public.rol_actual()) = 'admin') with check ((select public.rol_actual()) = 'admin');
+create policy modelos_admin on public.modelos_version for all to authenticated using ((select public.rol_actual()) = 'admin') with check ((select public.rol_actual()) = 'admin');
+create policy modelos_lectura on public.modelos_version for select to authenticated using ((select public.rol_actual()) in ('coach','admin'));
+
+-- ---------- índices extra ----------
+create index if not exists sesiones_socio_idx on public.sesiones(socio_id);
+create index if not exists sesiones_estacion_idx on public.sesiones(estacion_id);
+create index if not exists rutinas_socio_idx on public.rutinas(socio_id);
+create index if not exists rutinas_coach_estado_idx on public.rutinas(coach_id, estado);
+create index if not exists alertas_coach_resuelta_idx on public.alertas(coach_id, resuelta);
+create index if not exists alertas_socio_idx on public.alertas(socio_id);
+create index if not exists alertas_rutina_idx on public.alertas(rutina_id);
+
+-- ---------- permisos ----------
+-- anon (clave publishable sin sesión) no accede a nada. authenticated queda limitado por RLS. service_role = backend.
+revoke all on all tables in schema public from anon, authenticated;
+grant all on all tables in schema public to service_role;
+grant select, insert, update, delete on all tables in schema public to authenticated;
+revoke execute on function public.rol_actual() from public, anon;
+grant execute on function public.rol_actual() to authenticated, service_role;
+-- Sin política = sin acceso: anon y la estación nunca leen tablas directamente.

@@ -17,21 +17,22 @@ CAMPOS = ['edad', 'antiguedad_meses', 'visitas_semana', 'dias_ultima_visita', 'h
           'semaforo', 'racha_semanas', 'sesiones_estacion', 'coach_contacto_30d']
 
 
-def socios_simulados() -> list[dict]:
+def socios_simulados(coaches: list[str] | None = None) -> list[dict]:
+    coaches = coaches or COACHES
     df = generar_datos()['socios']
     filas = []
     for i, r in enumerate(df[CAMPOS].to_dict('records')):
         fila = {k: (v.item() if hasattr(v, 'item') else v) for k, v in r.items()}
         fila.update(dni=str(10000000 + i), qr=f'TNT-{i + 1:05d}', nombre=f'Socio {i + 1:04d}',
-                    coach_id=COACHES[i % len(COACHES)], user_id=None, segmento=None, riesgo_abandono=None,
+                    coach_id=coaches[i % len(coaches)], user_id=None, segmento=None, riesgo_abandono=None,
                     nivel_riesgo=None)
         filas.append(fila)
     return filas
 
 
-def sembrar(repo, clave_estacion: str | None = None) -> tuple[dict, str]:
+def sembrar(repo, clave_estacion: str | None = None, coaches: list[str] | None = None) -> tuple[dict, str]:
     """Carga socios + una estación. Devuelve (estación, clave en claro; solo se muestra una vez)."""
-    repo.insert_muchos('socios', socios_simulados())
+    repo.insert_muchos('socios', socios_simulados(coaches))
     clave = clave_estacion or generar_clave_estacion()
     est = repo.insert('estaciones', {'nombre': 'Estación piloto', 'clave_hash': hash_clave(clave), 'activa': True})
     return est, clave
