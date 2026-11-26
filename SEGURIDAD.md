@@ -81,6 +81,13 @@ una sesión abierta con ese socio. Rechazar guarda el motivo, que se muestra en 
   no necesita ningún secreto para validar tokens. HS256 solo se acepta si hay `SUPABASE_JWT_SECRET` (modo demo). El algoritmo se elige por lo que el servidor tiene configurado, no por lo que
   diga el token, y `alg: none` se rechaza (hay pruebas).
 
+## 16. Despliegue
+- Con `ENTORNO=prod` el backend **se niega a arrancar** sin Supabase: un error de configuración no puede dejar el servicio público en modo demo (con usuarios y datos de prueba).
+- Detrás del proxy de Render se arranca con `--proxy-headers`, para que el límite de peticiones cuente la IP real de cada cliente y no la del proxy.
+- **La clave de la estación (`VITE_STATION_KEY`) viaja dentro del JavaScript de la estación**: es inevitable en una app web sin servidor propio. Protege el despliegue
+  de la estación (Vercel Deployment Protection o servirla solo en el quiosco) y rota la clave si se filtra. El daño posible es limitado (la estación solo opera sobre socios con
+  sesión abierta), pero permite abrir sesiones por DNI, así que no debe quedar pública.
+
 ## Pendientes conocidos (fuera de esta fase)
 HTTPS lo pone el despliegue (proxy/hosting). Rotación automática de claves de estación y auditoría de accesos a fichas de salud
 quedan para una siguiente fase.

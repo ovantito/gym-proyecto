@@ -14,7 +14,7 @@ jobs:
           cache: pip
           cache-dependency-path: backend/requirements.txt
       - name: Instalar dependencias
-        run: pip install -r backend/requirements.txt
+        run: pip install -r backend/requirements-dev.txt
       - name: Lint (ruff)
         run: ruff check .
       - name: Entrenar modelos (los .joblib no se versionan)

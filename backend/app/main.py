@@ -32,6 +32,9 @@ def create_app(settings: Settings | None = None, repo=None) -> FastAPI:
     if not cfg.usa_supabase and not cfg.supabase_jwt_secret:   # demo: secreto efímero para firmar los JWT del login
         cfg.supabase_jwt_secret = secrets.token_urlsafe(48)
     app.state.modelos = cargar_modelos(cfg.modelos_dir)   # una sola vez, al iniciar
+    if repo is None and cfg.entorno == 'prod' and not cfg.usa_supabase:
+        # Sin esto, un error de configuración dejaría el servicio público en modo demo (datos y usuarios de prueba).
+        raise RuntimeError('ENTORNO=prod exige SUPABASE_URL y SUPABASE_SECRET_KEY; no se arranca en modo demo.')
     if repo is None:
         repo = RepoSupabase(cfg.supabase_url, cfg.supabase_secret_key) if cfg.usa_supabase else RepoMemoria()
         if isinstance(repo, RepoMemoria) and cfg.semilla_demo:
