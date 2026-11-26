@@ -46,7 +46,7 @@ create table if not exists public.mediciones (
   sesion_id text,
   peso_kg numeric not null, grasa_pct numeric not null,
   presion_sistolica int not null, presion_diastolica int not null, pulso_reposo int not null,
-  delta_peso_kg numeric, delta_grasa_pct numeric,
+  delta_peso_kg numeric, delta_grasa_pct numeric, duracion_seg numeric,
   atipica boolean not null default false,                  -- Mean-Shift: sensor sospechoso
   usada boolean not null default true,
   fecha timestamptz not null default now()
@@ -69,9 +69,9 @@ create table if not exists public.rutinas (
   socio_id uuid not null references public.socios(id) on delete cascade,
   coach_id uuid references auth.users(id),
   semaforo text not null, dias jsonb not null,
-  estado text not null check (estado in ('activa','pendiente_aprobacion','archivada')),
+  estado text not null check (estado in ('activa','pendiente_aprobacion','rechazada','archivada')),
   algoritmo text, costo_min numeric,
-  aprobada_por uuid, aprobada_en timestamptz,
+  aprobada_por uuid, aprobada_en timestamptz, motivo_rechazo text,
   creada timestamptz not null default now()
 );
 
@@ -83,6 +83,7 @@ create table if not exists public.alertas (
   coach_id uuid references auth.users(id),
   rutina_id uuid references public.rutinas(id) on delete set null,
   resuelta boolean not null default false,
+  atendida_por uuid, atendida_en timestamptz,
   creada timestamptz not null default now()
 );
 

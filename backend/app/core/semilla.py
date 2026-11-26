@@ -5,6 +5,7 @@ Se usa en el modo en memoria y en supabase/seed.py. var_grasa_pct NO se guarda e
 """
 from __future__ import annotations
 
+import secrets
 import uuid
 
 from app.core.seguridad import generar_clave_estacion, hash_clave
@@ -34,3 +35,19 @@ def sembrar(repo, clave_estacion: str | None = None) -> tuple[dict, str]:
     clave = clave_estacion or generar_clave_estacion()
     est = repo.insert('estaciones', {'nombre': 'Estación piloto', 'clave_hash': hash_clave(clave), 'activa': True})
     return est, clave
+
+
+def sembrar_usuarios(repo, pass_coach: str | None = None, pass_admin: str | None = None) -> list[dict]:
+    """Usuarios de prueba del panel (solo modo demo en memoria). Devuelve email/contraseña/rol para imprimirlos."""
+    from app.modulos.auth import hash_password
+    demo = [
+        ('coach@tnt.demo', pass_coach or secrets.token_urlsafe(9), 'coach', 'Coach Demo', COACHES[0]),
+        ('coach2@tnt.demo', secrets.token_urlsafe(9), 'coach', 'Coach Demo 2', COACHES[1]),
+        ('admin@tnt.demo', pass_admin or secrets.token_urlsafe(9), 'admin', 'Admin Demo', str(uuid.uuid5(NS, 'admin'))),
+    ]
+    salida = []
+    for email, pw, rol, nombre, uid in demo:
+        sal, h = hash_password(pw)
+        repo.insert('usuarios', {'email': email, 'sal': sal, 'password_hash': h, 'rol': rol, 'nombre': nombre, 'user_id': uid})
+        salida.append({'email': email, 'password': pw, 'rol': rol})
+    return salida

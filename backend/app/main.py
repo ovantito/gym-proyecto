@@ -1,6 +1,8 @@
 """Aplicación FastAPI de la Estación TNT Fit. Arranque:  uvicorn app.main:create_app --factory  (desde backend/)."""
 from __future__ import annotations
 
+import secrets
+
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi import _rate_limit_exceeded_handler
@@ -11,8 +13,8 @@ from app.core.config import Settings, get_settings
 from app.core.limites import limiter
 from app.core.modelos import cargar_modelos
 from app.core.repositorio import RepoMemoria, RepoSupabase, ahora
-from app.core.semilla import sembrar
-from app.modulos import coach, estacion, prediccion, rutinas, salud
+from app.core.semilla import sembrar, sembrar_usuarios
+from app.modulos import auth, coach, estacion, prediccion, rutinas, salud
 
 
 def _registrar_version(repo, modelos) -> None:
@@ -27,6 +29,8 @@ def create_app(settings: Settings | None = None, repo=None) -> FastAPI:
     cfg = settings or get_settings()
     app = FastAPI(title='Estación TNT Fit — API', version='1.0.0')
     app.state.settings = cfg
+    if not cfg.usa_supabase and not cfg.supabase_jwt_secret:   # demo: secreto efímero para firmar los JWT del login
+        cfg.supabase_jwt_secret = secrets.token_urlsafe(48)
     app.state.modelos = cargar_modelos(cfg.modelos_dir)   # una sola vez, al iniciar
     if repo is None:
         repo = RepoSupabase(cfg.supabase_url, cfg.supabase_service_key) if cfg.usa_supabase else RepoMemoria()
@@ -35,6 +39,8 @@ def create_app(settings: Settings | None = None, repo=None) -> FastAPI:
             print(f"[demo en memoria] estación id={est['id']}")
             if not cfg.demo_station_key:
                 print(f'[demo en memoria] X-Station-Key: {clave}')
+            for u in sembrar_usuarios(repo, cfg.demo_coach_password, cfg.demo_admin_password):
+                print(f"[demo en memoria] panel · {u['rol']}: {u['email']} / {u['password']}")
     app.state.repo = repo
     _registrar_version(repo, app.state.modelos)
 
@@ -44,7 +50,7 @@ def create_app(settings: Settings | None = None, repo=None) -> FastAPI:
     app.add_middleware(CORSMiddleware, allow_origins=cfg.origenes_cors, allow_credentials=False,
                        allow_methods=['GET', 'POST', 'PUT'], allow_headers=['Authorization', 'Content-Type', 'X-Station-Key'])
 
-    for m in (estacion, salud, rutinas, prediccion, coach):
+    for m in (auth, estacion, salud, rutinas, prediccion, coach):
         app.include_router(m.router, prefix='/v1')
 
     @app.get('/v1/salud', tags=['sistema'])

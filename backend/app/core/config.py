@@ -18,11 +18,14 @@ class Settings(BaseSettings):
     supabase_url: str | None = None
     supabase_service_key: str | None = None
     supabase_jwt_secret: str | None = None
+    supabase_anon_key: str | None = None   # solo para el login del panel contra Supabase Auth
     jwt_audience: str = 'authenticated'
     # CORS: dominios del frontend separados por coma. Vacío = ninguno permitido.
     cors_origins: str = ''
     rate_limit_defecto: str = '120/minute'
     rate_limit_sesiones: str = '10/minute'
+    rate_limit_login: str = '5/minute'
+    rate_limit_ver: str = '30/minute'
     # Modelos
     modelos_dir: Path = RAIZ / 'ml' / 'modelos'
     modo_offline: bool = False   # True => Hill Climbing en vez de A*
@@ -30,6 +33,8 @@ class Settings(BaseSettings):
     # Demo en memoria
     semilla_demo: bool = True
     demo_station_key: str | None = None   # si no se da, se genera una aleatoria y se imprime
+    demo_coach_password: str | None = None   # idem para los usuarios demo del panel
+    demo_admin_password: str | None = None
     # Cloudflare R2 (videos)
     r2_account_id: str | None = None
     r2_access_key_id: str | None = None
@@ -40,8 +45,8 @@ class Settings(BaseSettings):
     @property
     def origenes_cors(self) -> list[str]:
         lista = [o.strip() for o in self.cors_origins.split(',') if o.strip()]
-        if not lista and self.entorno == 'dev':   # desarrollo: la app de la estación (Vite)
-            return ['http://localhost:5173', 'http://127.0.0.1:5173']
+        if not lista and self.entorno == 'dev':   # desarrollo: estación (5173) y panel del coach (5174)
+            return ['http://localhost:5173', 'http://127.0.0.1:5173', 'http://localhost:5174', 'http://127.0.0.1:5174']
         return lista
 
     @property

@@ -6,7 +6,8 @@ os.environ.update({
     'SUPABASE_URL': '', 'SUPABASE_SERVICE_KEY': '',          # => repositorio en memoria
     'SUPABASE_JWT_SECRET': 'secreto-de-prueba-con-32-bytes-minimo!!',
     'DEMO_STATION_KEY': 'clave-de-prueba-estacion',
-    'RATE_LIMIT_DEFECTO': '100000/minute', 'RATE_LIMIT_SESIONES': '100000/minute',
+    'RATE_LIMIT_DEFECTO': '100000/minute', 'RATE_LIMIT_SESIONES': '100000/minute', 'RATE_LIMIT_LOGIN': '100000/minute',
+    'RATE_LIMIT_VER': '100000/minute', 'DEMO_COACH_PASSWORD': 'clave-coach-prueba', 'DEMO_ADMIN_PASSWORD': 'clave-admin-prueba',
     'R2_ACCOUNT_ID': 'cuenta-prueba', 'R2_ACCESS_KEY_ID': 'AKIAPRUEBA', 'R2_SECRET_ACCESS_KEY': 'secreto-prueba',
     'R2_BUCKET': 'tnt-videos',
 })
