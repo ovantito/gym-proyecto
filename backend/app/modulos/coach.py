@@ -10,7 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from app.core.repositorio import ahora
 from app.core.seguridad import Actor, requiere
 from app.core.umbrales import LESION_MAQUINAS_EXCLUIDAS, PARQ_NUM_PREGUNTAS
-from app.modulos.salud import _alerta, ficha_publica, recalcular_ficha
+from app.modulos.salud import _alerta, ficha_publica, recalcular_ficha, ultima_medicion_valida
 
 router = APIRouter(tags=['coach'])
 
@@ -85,8 +85,12 @@ def _socio_del_coach(repo, actor: Actor, socio_id: str) -> dict:
 def _vista_ficha(repo, socio: dict) -> dict:
     previas = repo.find('fichas_salud', socio_id=socio['id'])
     historial = sorted(repo.find('fichas_salud_historial', socio_id=socio['id']), key=lambda h: h['fecha'], reverse=True)
+    m = ultima_medicion_valida(repo, socio['id'])
+    medicion = None if m is None else {
+        'pesoKg': m['peso_kg'], 'tallaCm': m.get('talla_cm'), 'imc': m.get('imc'), 'grasaPct': m['grasa_pct'],
+        'sistolica': m['presion_sistolica'], 'diastolica': m['presion_diastolica'], 'pulso': m['pulso_reposo'], 'fecha': m['fecha']}
     return {'socio': {'id': socio['id'], 'nombre': socio['nombre'], 'dni': socio.get('dni'), 'semaforo': socio['semaforo']},
-            'ficha': ficha_publica(previas[0]) if previas else None, 'historial': historial}
+            'ficha': ficha_publica(previas[0]) if previas else None, 'medicion': medicion, 'historial': historial}
 
 
 @router.get('/coach/fichas')

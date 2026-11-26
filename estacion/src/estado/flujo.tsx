@@ -136,7 +136,7 @@ export function ProveedorFlujo({ children }: { children: ReactNode }) {
         const enviar = (l: Lectura) =>
           api.registrarMedicion(socio.id, {
             peso_kg: l.peso, grasa_pct: l.grasa, presion_sistolica: l.sistolica,
-            presion_diastolica: l.diastolica, pulso_reposo: l.pulso, ...(sesionId ? { sesion_id: sesionId } : {}),
+            presion_diastolica: l.diastolica, pulso_reposo: l.pulso, talla_cm: l.talla, ...(sesionId ? { sesion_id: sesionId } : {}),
           })
         const lectura =
           tipo === 'imposible' ? lecturaImposible(socio.id) : tipo === 'presion_alta' ? lecturaPresionAlta(socio.id) : lecturaNormal(socio.id)

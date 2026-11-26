@@ -1,4 +1,4 @@
-/** Báscula simulada: no hay hardware real. Los valores de cada socio se derivan de su id para que
+/** Báscula + tallímetro simulados: no hay hardware real. Los valores de cada socio se derivan de su id para que
  *  sean estables entre visitas (si no, el backend vería saltos de peso y los marcaría como atípicos). */
 export interface Lectura {
   peso: number
@@ -7,6 +7,8 @@ export interface Lectura {
   pulso: number
   sistolica: number
   diastolica: number
+  /** cm, del tallímetro ultrasónico de la estación */
+  talla: number
 }
 
 function hash(s: string): number {
@@ -31,6 +33,7 @@ export function lecturaNormal(socioId: string): Lectura {
     pulso: Math.round(64 + ruido(8)),
     sistolica: Math.round(118 + ruido(8)),
     diastolica: Math.round(77 + ruido(5)),
+    talla: 150 + ((h >>> 17) % 40), // 150–189 cm, estable por socio
   }
 }
 

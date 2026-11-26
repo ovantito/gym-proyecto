@@ -95,6 +95,7 @@ export interface MedicionIn {
   presion_sistolica: number
   presion_diastolica: number
   pulso_reposo: number
+  talla_cm?: number
   duracion_seg?: number
   sesion_id?: string
 }
