@@ -71,7 +71,7 @@ def _login_supabase(cfg, datos: LoginIn):
     if r.status_code != 200:
         raise HTTPException(401, MSG_MALO)
     token = r.json()['access_token']
-    actor = decodificar_jwt(token, cfg.supabase_jwt_secret, cfg.jwt_audience)   # valida firma y rol
+    actor = decodificar_jwt(token, cfg)   # valida firma y rol
     if actor.rol not in ('coach', 'admin'):
         raise HTTPException(403, 'Este panel es solo para coach y admin')
     return {'token': token, 'rol': actor.rol, 'nombre': datos.email, 'expiraEnSeg': r.json().get('expires_in', DURACION_TOKEN_SEG)}

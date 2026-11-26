@@ -40,11 +40,29 @@ def _no_autenticado(msg: str = 'Credenciales inválidas o ausentes') -> HTTPExce
     return HTTPException(401, msg, headers={'WWW-Authenticate': 'Bearer'})
 
 
-def decodificar_jwt(token: str, secreto: str | None, audiencia: str) -> Actor:
-    if not secreto:
-        raise _no_autenticado('JWT no configurado en el servidor')
+_CLIENTES_JWKS: dict[str, jwt.PyJWKClient] = {}
+
+
+def _cliente_jwks(url: str) -> jwt.PyJWKClient:
+    if url not in _CLIENTES_JWKS:   # PyJWKClient guarda las claves en caché (no se baja el JWKS en cada petición)
+        _CLIENTES_JWKS[url] = jwt.PyJWKClient(url, cache_keys=True, lifespan=600, timeout=10)
+    return _CLIENTES_JWKS[url]
+
+
+def decodificar_jwt(token: str, cfg) -> Actor:
+    """Valida un JWT y devuelve el actor. El algoritmo NO se toma a ciegas del token:
+    - HS256 solo si hay secreto compartido (modo demo o proyectos Supabase con el secreto legado);
+    - ES256/RS256 solo con las claves públicas del JWKS de Supabase (JWT signing keys nuevas)."""
     try:
-        datos = jwt.decode(token, secreto, algorithms=['HS256'], audience=audiencia, options={'require': ['exp', 'sub']})
+        alg = jwt.get_unverified_header(token).get('alg')
+        opciones = {'require': ['exp', 'sub']}
+        if alg == 'HS256' and cfg.supabase_jwt_secret:
+            datos = jwt.decode(token, cfg.supabase_jwt_secret, algorithms=['HS256'], audience=cfg.jwt_audience, options=opciones)
+        elif alg in ('ES256', 'RS256') and cfg.jwks_url_efectiva:
+            clave = _cliente_jwks(cfg.jwks_url_efectiva).get_signing_key_from_jwt(token).key
+            datos = jwt.decode(token, clave, algorithms=['ES256', 'RS256'], audience=cfg.jwt_audience, options=opciones)
+        else:
+            raise _no_autenticado('Algoritmo de token no aceptado o JWT no configurado en el servidor')
     except jwt.PyJWTError as e:
         raise _no_autenticado(f'Token inválido: {e.__class__.__name__}') from e
     rol = (datos.get('app_metadata') or {}).get('role')
@@ -63,8 +81,7 @@ def obtener_actor(request: Request, x_station_key: str | None = Header(default=N
                 return Actor(rol='estacion', id=est['id'], estacion_id=est['id'])
         raise _no_autenticado('X-Station-Key inválida')
     if authorization and authorization.lower().startswith('bearer '):
-        return decodificar_jwt(authorization[7:].strip(), app.state.settings.supabase_jwt_secret,
-                               app.state.settings.jwt_audience)
+        return decodificar_jwt(authorization[7:].strip(), app.state.settings)
     raise _no_autenticado()
 
 
