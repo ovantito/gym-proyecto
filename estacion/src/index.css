@@ -1,0 +1,44 @@
+@import 'tailwindcss';
+@import '@fontsource-variable/inter';
+
+@theme {
+  --font-sans: 'Inter Variable', system-ui, sans-serif;
+  --color-fondo: #0f1a2e;
+  --color-tarjeta: #1b2a48;
+  --color-tarjeta2: #25375c;
+  --color-borde: #34476b;
+  --color-naranja: #e8873f;
+  --color-teal: #20a898;
+  --color-texto: #f4f6fb;
+  --color-suave: #9fb0cb;
+  --color-sem-verde: #2fbf71;
+  --color-sem-amarillo: #f5b83d;
+  --color-sem-rojo: #e5484d;
+}
+
+html, body, #root { height: 100%; margin: 0; }
+body {
+  background: var(--color-fondo);
+  color: var(--color-texto);
+  font-family: var(--font-sans);
+  overflow: hidden;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+button { cursor: pointer; }
+button:active:not(:disabled) { transform: scale(0.98); }
+
+/* ---- Ticket de 80 mm ---- */
+.ticket-impreso { display: none; }
+@media print {
+  @page { size: 80mm auto; margin: 0; }
+  html, body { height: auto; overflow: visible; background: #fff; }
+  #root > * { display: none !important; }
+  #root > .ticket-impreso { display: block !important; }
+  .ticket-impreso {
+    width: 72mm; margin: 0 auto; padding: 4mm 0;
+    color: #000; background: #fff; font-family: 'Courier New', monospace; font-size: 11pt; line-height: 1.35;
+  }
+  .ticket-impreso svg { width: 40mm; height: 40mm; display: block; margin: 2mm auto; }
+}

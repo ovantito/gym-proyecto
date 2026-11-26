@@ -114,3 +114,20 @@ Coinciden con el notebook corregido; detalle en `DECISIONES.md`.
 
 - `DECISIONES.md` — decisiones tomadas sin consultar y diferencias con el Colab.
 - `SEGURIDAD.md` — cada medida de seguridad explicada en lenguaje simple.
+
+## App de la estación (`estacion/`)
+
+React + Vite + TypeScript + Tailwind v4, pensada para pantalla táctil horizontal de 1280×800.
+
+```bash
+cd estacion
+cp .env.example .env     # VITE_API_URL, VITE_STATION_ID, VITE_STATION_KEY (el backend en modo demo imprime el id y la clave al arrancar)
+npm install
+npm run dev              # http://localhost:5173  (el backend debe estar en VITE_API_URL)
+npm test                 # Vitest + Testing Library
+npm run lint && npm run build
+```
+
+Flujo: Identificación (DNI en teclado en pantalla) → Medición (báscula simulada; "lectura imposible" demuestra Mean-Shift) → Ficha de salud (PAR-Q+) →
+Semáforo (rojo termina aquí) → Rutina (A*, video por ejercicio) → Ticket de 80 mm con QR. A los 60 s sin tocar vuelve al inicio y borra los datos del socio.
+Todas las llamadas al backend están en `src/api/cliente.ts`.

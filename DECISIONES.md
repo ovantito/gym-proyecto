@@ -46,3 +46,24 @@ porque ya no influye en el abandono simulado. (Con la versión vieja de los dato
 - **`modelos/*.joblib` no se versionan** (pesan y se regeneran); `metadata.json` sí.
 - **Python:** desarrollado en 3.12; CI en 3.11 (mínimo pedido).
 - **`GET /salud`** es público y solo expone versiones de modelos, nada sensible.
+
+## App de la estación (`estacion/`)
+- **Figma:** se leyó el prototipo con el MCP (estructura de 6 pantallas + paleta/tipografía de una captura). El prototipo es **vertical 600×960**; se
+  siguió tu indicación de pantalla **horizontal 1280×800** y se reacomodó la distribución (dos columnas). Colores: fondo azul marino, acento naranja
+  `#e8873f`, teal para la espera, tarjetas redondeadas; tipografía Inter (paquete `@fontsource`, funciona sin internet).
+- **Textos del prototipo que no se copiaron:** "Tu coach aprobó tu rutina" (en la app la rutina amarilla queda *pendiente de aprobación*, como dice el backend),
+  y el bloque "Músculo por segmento" (el backend no recibe esos datos).
+- **Músculo:** se muestra en pantalla pero **no se envía** (`MedicionIn` del backend rechaza campos extra).
+- **"¿Cómo te sientes hoy?"** no tiene campo en el backend: "Mareado/a" marca la pregunta 4 del PAR-Q+ y "Dolor en el pecho" la 2 (crítica ⇒ semáforo rojo).
+- **Báscula simulada:** los valores de cada socio se derivan de su id (estables entre visitas). Si fueran aleatorios, el backend vería saltos de peso y marcaría
+  como atípica una lectura normal. "Lectura imposible" = peso +6.5 kg; como el backend compara contra la última lectura válida, si aún no hay una en la sesión
+  la app envía antes una lectura normal de base (en la demo equivale a "la medición de ayer").
+- **Rojo:** solo se puede provocar con el PAR-Q+ (preguntas 1–3) o presión/pulso altos; la báscula simulada siempre da valores normales.
+- **Espera por máquina:** el backend no la incluye en la rutina; se pide aparte a `GET /prediccion/espera` (hora actual). Si falla, la rutina se muestra igual con "espera 0 min".
+- **QR del ticket:** apunta a la URL firmada del video del primer ejercicio, que **caduca a los 15 min** (así lo define el backend). Para un QR permanente haría falta
+  una página pública de video; queda para otra fase. Si el video falla, el ticket sale sin QR.
+- **Ticket 80 mm:** `window.print()` con `@page { size: 80mm auto }`; en pantalla el ticket es una vista previa de una línea por ejercicio, al imprimir se agrega la línea de descanso.
+- **Inactividad:** 60 s sin tocar (en cualquier pantalla menos la inicial) ⇒ `reiniciar`, que reemplaza todo el estado por el inicial; las respuestas del backend que lleguen tarde se descartan.
+- **Estado:** `useReducer` + contexto (`src/estado/flujo.tsx`), sin zustand. Toda llamada HTTP está en `src/api/cliente.ts`.
+- **Backend:** en `ENTORNO=dev` con `CORS_ORIGINS` vacío se permite `http://localhost:5173`; en otro entorno hace falta configurarlo.
+- **Dependencias en versiones actuales** (React 19, Vite 8, Tailwind 4, Vitest 5, ESLint 10, TypeScript 6).
