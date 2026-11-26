@@ -12,6 +12,7 @@ from app.core.config import get_settings
 from app.core.limites import limiter
 from app.core.repositorio import ahora
 from app.core.seguridad import Actor, autorizar_socio, requiere
+from app.core.videos import VIDEOS
 from app.modulos.prediccion import MES_REFERENCIA, hora_dia_actual
 from app.schemas import RutinaIn
 from ml.busqueda import ProblemaRecorrido, a_estrella, espera_por_maquina, hill_climbing
@@ -88,7 +89,7 @@ def _url_firmada(c, ejercicio_id: str) -> str:
                       aws_access_key_id=c.r2_access_key_id, aws_secret_access_key=c.r2_secret_access_key,
                       region_name='auto', config=Config(signature_version='s3v4'))
     return s3.generate_presigned_url('get_object', ExpiresIn=u.VIDEO_URL_TTL_SEG,
-                                     Params={'Bucket': c.r2_bucket, 'Key': f'{c.r2_prefijo}{ejercicio_id}.mp4'})
+                                     Params={'Bucket': c.r2_bucket, 'Key': VIDEOS.get(ejercicio_id, f'{c.r2_prefijo}{ejercicio_id}.mp4')})
 
 
 @router.get('/ejercicios/{ejercicio_id}/video')

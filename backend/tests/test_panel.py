@@ -132,7 +132,7 @@ def test_presion_alta_165_102_no_es_atipica_y_da_rojo(client, est_headers, abrir
 # ------------------------------------------------------------------ QR permanente
 def test_ver_video_es_publico_y_redirige_con_url_firmada_nueva(client):
     r = client.get('/v1/ejercicios/E-M-01/ver', follow_redirects=False)
-    assert r.status_code == 302 and 'X-Amz-Expires=900' in r.headers['location'] and 'E-M-01.mp4' in r.headers['location']
+    assert r.status_code == 302 and 'X-Amz-Expires=900' in r.headers['location'] and 'Prensa-de-pierna.mp4' in r.headers['location']
     assert client.get('/v1/ejercicios/E-M-99/ver', follow_redirects=False).status_code == 404
     assert client.get('/v1/ejercicios/xx/ver', follow_redirects=False).status_code == 422
 
@@ -148,3 +148,11 @@ def test_ningun_frontend_menciona_la_secret_key():
                 continue
             texto = f.read_text(encoding='utf-8', errors='ignore')
             assert not any(p in texto for p in prohibido), f'{f} contiene una clave secreta'
+
+
+def test_cada_maquina_tiene_video_asignado():
+    from app.core.videos import VIDEOS
+
+    from ml.datos import MAQUINAS
+    assert {f'E-{m}' for m in MAQUINAS.index} == set(VIDEOS)
+    assert all(v.endswith('.mp4') for v in VIDEOS.values())

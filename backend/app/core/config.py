@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import re
 from functools import lru_cache
 from pathlib import Path
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 RAIZ = Path(__file__).resolve().parents[3]   # tnt-fit/
@@ -42,6 +44,15 @@ class Settings(BaseSettings):
     r2_secret_access_key: str | None = None
     r2_bucket: str | None = None
     r2_prefijo: str = 'ejercicios/'
+
+    @field_validator('r2_account_id')
+    @classmethod
+    def _solo_el_id(cls, v: str | None) -> str | None:
+        """Si pegaron la URL del endpoint completa, se extrae solo el Account ID (32 caracteres hex)."""
+        if not v:
+            return None
+        m = re.search(r'[0-9a-fA-F]{32}', v)
+        return m.group(0) if m else v.strip()
 
     @property
     def origenes_cors(self) -> list[str]:

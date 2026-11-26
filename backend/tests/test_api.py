@@ -139,7 +139,7 @@ def test_lote_abandono_solo_admin_y_crea_alertas(client, est_headers, coach0, ad
 
 def test_video_url_firmada_15_min(client, est_headers):
     j = client.get('/v1/ejercicios/E-M-01/video', headers=est_headers).json()
-    assert j['expiraEnSeg'] == 900 and 'X-Amz-Expires=900' in j['url'] and 'ejercicios/E-M-01.mp4' in j['url']
+    assert j['expiraEnSeg'] == 900 and 'X-Amz-Expires=900' in j['url'] and 'Prensa-de-pierna.mp4' in j['url']
     assert client.get('/v1/ejercicios/E-M-99/video', headers=est_headers).status_code == 404
     assert client.get('/v1/ejercicios/../../secreto/video', headers=est_headers).status_code in (404, 422)
 
