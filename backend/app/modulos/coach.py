@@ -129,6 +129,7 @@ def rutinas_pendientes(request: Request, actor: Actor = Depends(requiere('coach'
         r['socioNombre'] = _nombre(repo, r['socio_id'])
         r['motivos'] = ficha.get('motivos', [])
         r['maquinasExcluidas'] = ficha.get('maquinas_excluidas', [])
+        r['lesiones'] = ficha.get('lesiones', [])
     return sorted(filas, key=lambda r: r['creada'])
 
 

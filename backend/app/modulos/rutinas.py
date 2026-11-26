@@ -9,6 +9,7 @@ from fastapi.responses import RedirectResponse
 
 from app.core import umbrales as u
 from app.core.config import get_settings
+from app.core.lesiones import lesiones_sin_exclusion
 from app.core.limites import limiter
 from app.core.repositorio import ahora
 from app.core.seguridad import Actor, autorizar_socio, requiere
@@ -35,8 +36,10 @@ def ordenar_rutina(espera: dict[str, float], excluidas: list[str], offline: bool
         return camino, costo, 'hill_climbing'
 
 
-def armar_dias(camino: list[str], semaforo: str) -> list[dict]:
-    pauta = u.RUTINA_POR_SEMAFORO[semaforo]
+def armar_dias(camino: list[str], semaforo: str, intensidad_reducida: bool = False) -> list[dict]:
+    pauta = dict(u.RUTINA_POR_SEMAFORO[semaforo])
+    if intensidad_reducida:   # lesión sin máquinas que excluir: se compensa con una serie menos
+        pauta['series'] = max(1, pauta['series'] - 1)
     ejercicios = [{'id': f'E-{m}', 'nombre': MAQUINAS.loc[m, 'nombre'], 'maquina': m, **pauta} for m in camino]
     return [{'ejercicios': ejercicios}]
 
@@ -62,7 +65,7 @@ def generar_rutina(request: Request, socio_id: str, datos: RutinaIn | None = Non
     camino, costo, algoritmo = ordenar_rutina(espera, excluidas, cfg.modo_offline)
 
     estado = 'pendiente_aprobacion' if semaforo == 'amarillo' else 'activa'
-    dias = armar_dias(camino, semaforo)
+    dias = armar_dias(camino, semaforo, bool(lesiones_sin_exclusion(fichas[0].get('lesiones', []))))
     alertas = []
     if excluidas:
         alertas.append('Máquinas excluidas por lesión: ' + ', '.join(excluidas))

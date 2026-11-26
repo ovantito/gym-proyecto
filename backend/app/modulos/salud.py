@@ -19,7 +19,7 @@ router = APIRouter(tags=['salud'])
 
 # ----------------------------------------------------------------- semáforo (reglas fijas)
 def calcular_semaforo(*, sistolica: int | None, diastolica: int | None, pulso: int | None,
-                      parq: list[bool], lesiones: list[str]) -> tuple[str, list[str]]:
+                      parq: list[bool], lesiones: list[str], sintomas_hoy: list[str] | tuple = ()) -> tuple[str, list[str]]:
     """Devuelve (color, motivos). Los datos ausentes (None) no disparan ninguna regla."""
     rojos, amarillos = [], []
     if sistolica is not None and sistolica >= u.ROJO_PRESION_SISTOLICA:
@@ -40,6 +40,7 @@ def calcular_semaforo(*, sistolica: int | None, diastolica: int | None, pulso: i
         amarillos.append('PAR-Q+ con alguna respuesta afirmativa')
     if lesiones:
         amarillos.append('Lesión declarada: ' + ', '.join(lesiones))
+    amarillos += [u.SINTOMAS_AMARILLO[x] for x in sintomas_hoy if x in u.SINTOMAS_AMARILLO]
     return ('amarillo', amarillos) if amarillos else ('verde', [])
 
 
@@ -53,8 +54,10 @@ def ultima_medicion_valida(repo, socio_id: str) -> dict | None:
     return max(reversed(ms), key=lambda m: m['fecha']) if ms else None
 
 
-def _aplicar_ficha(repo, socio_id: str, parq, lesiones, sis, dia, pulso) -> dict:
-    color, motivos = calcular_semaforo(sistolica=sis, diastolica=dia, pulso=pulso, parq=parq, lesiones=lesiones)
+def _aplicar_ficha(repo, socio_id: str, parq, lesiones, sis, dia, pulso, sintomas_hoy=()) -> dict:
+    # Los síntomas de hoy solo influyen en el color de esta visita: en la ficha se guardan parq y lesiones, nunca los síntomas.
+    color, motivos = calcular_semaforo(sistolica=sis, diastolica=dia, pulso=pulso, parq=parq, lesiones=lesiones,
+                                       sintomas_hoy=sintomas_hoy)
     ficha = repo.upsert('fichas_salud', {
         'socio_id': socio_id, 'parq': parq, 'lesiones': lesiones, 'semaforo': color, 'motivos': motivos,
         'maquinas_excluidas': maquinas_excluidas(lesiones), 'requiere_apto_medico': color == 'rojo',
@@ -70,13 +73,14 @@ def condiciones_quitadas(previa: dict, parq: list[bool], lesiones: list[str]) ->
     return quitadas
 
 
-def recalcular_ficha(repo, socio_id: str, parq: list[bool], lesiones: list[str], sis=None, dia=None, pulso=None) -> dict:
+def recalcular_ficha(repo, socio_id: str, parq: list[bool], lesiones: list[str], sis=None, dia=None, pulso=None,
+                     sintomas_hoy=()) -> dict:
     """Guarda la ficha y recalcula el semáforo; lo que no se manda sale de la última medición válida del socio."""
     ult = ultima_medicion_valida(repo, socio_id) or {}
     return _aplicar_ficha(repo, socio_id, parq, lesiones,
                           sis if sis is not None else ult.get('presion_sistolica'),
                           dia if dia is not None else ult.get('presion_diastolica'),
-                          pulso if pulso is not None else ult.get('pulso_reposo'))
+                          pulso if pulso is not None else ult.get('pulso_reposo'), sintomas_hoy)
 
 
 def _alerta(repo, socio: dict, tipo: str, nivel: str, mensaje: str) -> None:
@@ -145,7 +149,8 @@ def guardar_ficha(request: Request, socio_id: str, f: FichaIn,
         quitadas = condiciones_quitadas(previas[0], f.parq, f.lesiones)
         if quitadas:
             raise HTTPException(409, 'No se puede quitar una condición ya registrada. Habla con tu coach: ' + ', '.join(quitadas))
-    ficha = recalcular_ficha(repo, socio_id, f.parq, f.lesiones, f.presion_sistolica, f.presion_diastolica, f.pulso_reposo)
+    ficha = recalcular_ficha(repo, socio_id, f.parq, f.lesiones, f.presion_sistolica, f.presion_diastolica, f.pulso_reposo,
+                            f.sintomas_hoy)
     if ficha['semaforo'] == 'rojo':
         _alerta(repo, socio, 'semaforo_rojo', 'alta', 'Socio en rojo: requiere apto médico antes de entrenar')
     return {'semaforo': ficha['semaforo'], 'motivos': ficha['motivos'], 'requiereAptoMedico': ficha['requiere_apto_medico'],

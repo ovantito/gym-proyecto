@@ -36,6 +36,8 @@ class MedicionIn(Estricto):
 class FichaIn(Estricto):
     parq: list[bool] = Field(min_length=PARQ_NUM_PREGUNTAS, max_length=PARQ_NUM_PREGUNTAS)
     lesiones: list[str] = Field(default_factory=list, max_length=10)
+    # Síntomas de HOY: dan amarillo en esta visita y no se guardan en la ficha permanente.
+    sintomas_hoy: list[Literal['dolor_cabeza', 'mareo']] = Field(default_factory=list, max_length=2)
     # Opcionales: si faltan se usa la última medición válida del socio.
     presion_sistolica: int | None = Field(default=None, ge=60, le=260)
     presion_diastolica: int | None = Field(default=None, ge=30, le=160)

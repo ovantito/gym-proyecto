@@ -68,12 +68,24 @@ export const PERFILES: Record<string, { nombre: string; descripcion: string }> =
 }
 export const nombrePerfil = (s: string | null) => (s ? (PERFILES[s]?.nombre ?? s) : '—')
 
+/** Mismos ids y nombres que backend/app/core/lesiones.py. */
+export const LESIONES = [
+  { id: 'rodilla', texto: 'Rodilla' },
+  { id: 'hombro', texto: 'Hombro' },
+  { id: 'espalda_baja', texto: 'Espalda baja (lumbar)' },
+  { id: 'cuello', texto: 'Cuello (cervical)' },
+  { id: 'muneca_codo', texto: 'Muñeca o codo' },
+  { id: 'tobillo', texto: 'Tobillo' },
+  { id: 'cadera', texto: 'Cadera' },
+] as const
+export const nombreLesion = (id: string) => LESIONES.find((l) => l.id === id)?.texto ?? id
+
 /** Motivo técnico del semáforo → palabras simples. */
 export function motivoSimple(m: string): string {
   if (m.startsWith('Presión')) return 'Presión alta'
   if (m.startsWith('Pulso')) return 'Pulso en reposo acelerado'
   if (m.startsWith('PAR-Q+ con respuesta crítica')) return 'Respuesta crítica en el cuestionario PAR-Q+'
   if (m.startsWith('PAR-Q+')) return 'Marcó una molestia en el cuestionario PAR-Q+'
-  if (m.startsWith('Lesión declarada')) return `Lesión declarada: ${m.split(': ')[1] ?? ''}`
+  if (m.startsWith('Lesión declarada')) return `Lesión declarada: ${(m.split(': ')[1] ?? '').split(', ').filter(Boolean).map(nombreLesion).join(', ')}`
   return m
 }

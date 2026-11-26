@@ -1,15 +1,9 @@
 import { useState, type FormEvent } from 'react'
 import * as api from '../api/cliente'
-import type { CambioFicha, FichaSocioOut, Lesion } from '../api/cliente'
-import { Boton, Etiqueta, motivoSimple, Tarjeta, Titulo } from '../componentes/ui'
+import type { CambioFicha, FichaSocioOut } from '../api/cliente'
+import { Boton, Etiqueta, LESIONES, motivoSimple, nombreLesion, Tarjeta, Titulo } from '../componentes/ui'
 
-const LESIONES: { id: Lesion; texto: string }[] = [
-  { id: 'rodilla', texto: 'Rodilla' },
-  { id: 'hombro', texto: 'Hombro' },
-  { id: 'espalda_baja', texto: 'Espalda baja' },
-  { id: 'cadera', texto: 'Cadera' },
-]
-const NOMBRE_LESION = Object.fromEntries(LESIONES.map((l) => [l.id, l.texto.toLowerCase()]))
+const NOMBRE_LESION = (id: string) => nombreLesion(id).toLowerCase()
 
 /** PAR-Q+ (las mismas 7 preguntas de la estación). Las 3 primeras son críticas: un «sí» es semáforo rojo. */
 const PARQ = [
@@ -29,8 +23,8 @@ const fecha = (iso: string) => new Date(iso).toLocaleString('es-PE', { dateStyle
 function resumenCambio(c: CambioFicha['cambio']): string[] {
   const { antes, despues } = c
   const out: string[] = []
-  for (const l of antes.lesiones) if (!despues.lesiones.includes(l)) out.push(`Quitó la lesión de ${NOMBRE_LESION[l] ?? l}`)
-  for (const l of despues.lesiones) if (!antes.lesiones.includes(l)) out.push(`Agregó la lesión de ${NOMBRE_LESION[l] ?? l}`)
+  for (const l of antes.lesiones) if (!despues.lesiones.includes(l)) out.push(`Quitó la lesión de ${NOMBRE_LESION(l)}`)
+  for (const l of despues.lesiones) if (!antes.lesiones.includes(l)) out.push(`Agregó la lesión de ${NOMBRE_LESION(l)}`)
   PARQ.forEach((q, i) => {
     if (antes.parq[i] && !despues.parq[i]) out.push(`Quitó el «sí» de: ${q}`)
     if (!antes.parq[i] && despues.parq[i]) out.push(`Agregó el «sí» de: ${q}`)

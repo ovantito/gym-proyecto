@@ -101,7 +101,9 @@ export interface MedicionIn {
 
 export interface FichaIn {
   parq: boolean[] // exactamente 7 respuestas
-  lesiones: string[] // rodilla | hombro | espalda_baja | cadera
+  lesiones: string[] // ids de backend/app/core/lesiones.py
+  /** síntomas de HOY: dan amarillo en esta visita y el backend no los guarda en la ficha */
+  sintomas_hoy?: ('dolor_cabeza' | 'mareo')[]
   presion_sistolica?: number
   presion_diastolica?: number
   pulso_reposo?: number
