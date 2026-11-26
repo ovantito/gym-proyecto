@@ -24,7 +24,7 @@ export function Mantenimiento({ clave }: { clave: number }) {
               <Tarjeta key={g.estacionId}>
                 <div className="flex items-center justify-between">
                   <h3 className="text-[20px] font-bold">{g.estacion}</h3>
-                  <span className="rounded-full bg-sem-amarillo/20 px-3 py-1 text-[13px] font-bold text-sem-amarillo">{g.lecturas.length} lecturas atípicas</span>
+                  <span className="rounded-full bg-sem-amarillo/20 px-3 py-1 text-[13px] font-bold text-sem-amarillo">{g.lecturas.length} {g.lecturas.length === 1 ? 'lectura atípica' : 'lecturas atípicas'}</span>
                 </div>
                 <table className="mt-3 w-full text-left text-[15px]">
                   <thead className="text-[13px] uppercase text-suave">

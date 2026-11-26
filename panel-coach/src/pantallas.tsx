@@ -117,7 +117,7 @@ export function Panel() {
       <main className="flex-1 overflow-y-auto p-8">
         {esAdmin && (
           <div className="mb-6 flex items-center gap-4 rounded-2xl bg-tarjeta px-5 py-3">
-            <Boton disabled={ejecutando} onClick={correrAnalisis}>
+            <Boton className="shrink-0 whitespace-nowrap" disabled={ejecutando} onClick={correrAnalisis}>
               {ejecutando ? 'Analizando…' : 'Ejecutar análisis nocturno ahora'}
             </Boton>
             <p className="text-[14px] text-suave">Calcula riesgo de abandono y perfiles de todos los socios (normalmente corre solo cada noche).</p>
