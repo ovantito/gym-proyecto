@@ -109,6 +109,9 @@ export interface FichaSalud {
   motivos: string[]
   requiereAptoMedico: boolean
   maquinasExcluidas: string[]
+  /** rojo: bloqueado hasta que un coach/admin lo libere */
+  bloqueado: boolean
+  bloqueadoDesde: string | null
   actualizada: string | null
 }
 
@@ -116,6 +119,7 @@ interface EstadoFicha {
   parq: boolean[]
   lesiones: Lesion[]
   semaforo: Semaforo
+  bloqueado?: boolean
 }
 
 /** Fila de fichas_salud_historial */
@@ -224,3 +228,5 @@ export const ejecutarAnalisisNocturno = () => pedir<LoteOut>('POST', '/prediccio
 export const buscarFicha = (dni: string) => pedir<FichaSocioOut>('GET', `/coach/fichas?dni=${encodeURIComponent(dni)}`)
 export const corregirFicha = (socioId: string, cambio: { parq: boolean[]; lesiones: Lesion[]; motivo: string }) =>
   pedir<FichaSocioOut>('PUT', `/coach/fichas/${encodeURIComponent(socioId)}`, cambio)
+export const liberarSocio = (socioId: string, motivo: string) =>
+  pedir<FichaSocioOut>('POST', `/coach/fichas/${encodeURIComponent(socioId)}/liberar`, { motivo })

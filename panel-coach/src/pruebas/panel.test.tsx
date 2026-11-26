@@ -22,7 +22,7 @@ const SOCIO = (n: string, p: number) => ({
   ],
 })
 
-interface Opciones { rol?: 'coach' | 'admin'; clave?: string }
+interface Opciones { rol?: 'coach' | 'admin'; clave?: string; bloqueado?: boolean; liberar409?: boolean }
 function instalar(o: Opciones = {}) {
   const rol = o.rol ?? 'coach'
   const llamadas: { metodo: string; ruta: string; body?: unknown }[] = []
@@ -30,7 +30,8 @@ function instalar(o: Opciones = {}) {
   let fichaActual: Record<string, unknown> = { parq: PARQ_NO, lesiones: ['rodilla'], semaforo: 'amarillo', motivos: ['Lesión declarada: rodilla'],
     requiereAptoMedico: false, maquinasExcluidas: ['M-02', 'M-03'], actualizada: '2026-11-25T10:00:00+00:00' }
   let historial: unknown[] = []
-  const vistaFicha = () => ({ socio: { id: 's-9', nombre: 'Socio 0009', dni: '12345678', semaforo: fichaActual.semaforo }, ficha: fichaActual, historial, medicion: MEDICION })
+  let bloqueado = o.bloqueado ?? false
+  const vistaFicha = () => ({ socio: { id: 's-9', nombre: 'Socio 0009', dni: '12345678', semaforo: fichaActual.semaforo }, ficha: { ...fichaActual, bloqueado, bloqueadoDesde: bloqueado ? '2026-11-26T14:00:00+00:00' : null }, historial, medicion: MEDICION })
   vi.stubGlobal('fetch', vi.fn(async (url: string, init: RequestInit = {}) => {
     const ruta = url.replace(/^.*\/v1/, '')
     const metodo = init.method ?? 'GET'
@@ -46,6 +47,11 @@ function instalar(o: Opciones = {}) {
     if (/\/coach\/alertas\/.+\/atender$/.test(ruta)) return ok({ resuelta: true })
     if (ruta.startsWith('/coach/fichas?dni=')) {
       return ruta.endsWith('12345678') ? ok(vistaFicha()) : ok({ detail: 'No encontramos ese DNI entre tus socios' }, 404)
+    }
+    if (ruta === '/coach/fichas/s-9/liberar' && metodo === 'POST') {
+      if (o.liberar409) return ok({ detail: 'Primero corrige la ficha: tiene una respuesta crítica del PAR-Q' }, 409)
+      bloqueado = false
+      return ok(vistaFicha())
     }
     if (ruta === '/coach/fichas/s-9' && metodo === 'PUT') {
       const b = JSON.parse(init.body as string)
@@ -232,5 +238,47 @@ describe('última medición en Fichas de salud', () => {
     expect(screen.getByText('170 cm')).toBeInTheDocument()
     expect(screen.getByText('25.0 · sobrepeso')).toBeInTheDocument()
     expect(screen.getByText('120/78 mmHg')).toBeInTheDocument()
+  })
+})
+
+describe('bloqueo por semáforo rojo', () => {
+  async function abrirFicha(u: ReturnType<typeof userEvent.setup>) {
+    render(<App />)
+    await entrar(u)
+    await u.click(await screen.findByRole('button', { name: 'Fichas de salud' }))
+    await u.type(screen.getByLabelText('DNI del socio'), '12345678')
+    await u.click(screen.getByRole('button', { name: 'Buscar' }))
+    await screen.findByText('Socio 0009')
+  }
+
+  it('muestra el aviso de bloqueado y «Liberar socio» llama a la API con el motivo', async () => {
+    const l = instalar({ bloqueado: true })
+    const u = userEvent.setup()
+    await abrirFicha(u)
+    expect(screen.getByText(/Bloqueado por semáforo rojo desde .* No puede entrenar hasta que lo liberes\./)).toBeInTheDocument()
+    const liberar = screen.getByRole('button', { name: 'Liberar socio' })
+    expect(liberar).toBeDisabled() // sin motivo no se puede
+    await u.click(screen.getByRole('button', { name: 'Lo evalué en persona' }))
+    await u.click(liberar)
+    await waitFor(() => expect(l.find((x) => x.ruta === '/coach/fichas/s-9/liberar')?.body).toEqual({ motivo: 'Lo evalué en persona' }))
+    await waitFor(() => expect(screen.queryByText(/Bloqueado por semáforo rojo/)).not.toBeInTheDocument())
+  })
+
+  it('un socio sin bloqueo no muestra el aviso', async () => {
+    instalar()
+    const u = userEvent.setup()
+    await abrirFicha(u)
+    expect(screen.queryByRole('button', { name: 'Liberar socio' })).not.toBeInTheDocument()
+  })
+
+  it('muestra el 409 del backend tal cual llega', async () => {
+    instalar({ bloqueado: true, liberar409: true })
+    const u = userEvent.setup()
+    await abrirFicha(u)
+    const form = screen.getByRole('form', { name: 'Liberar socio' })
+    await u.click(within(form).getByRole('button', { name: 'Presentó apto médico' }))
+    await u.click(within(form).getByRole('button', { name: 'Liberar socio' }))
+    expect(await screen.findByText('Primero corrige la ficha: tiene una respuesta crítica del PAR-Q')).toBeInTheDocument()
+    expect(screen.getByText(/Bloqueado por semáforo rojo/)).toBeInTheDocument()
   })
 })

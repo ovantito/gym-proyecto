@@ -51,7 +51,7 @@ def generar_rutina(request: Request, socio_id: str, datos: RutinaIn | None = Non
         raise HTTPException(409, 'Falta la ficha de salud (PAR-Q+) del socio')
     # De la ficha solo salen el color y la lista de máquinas prohibidas; el modelo nunca la ve.
     semaforo, excluidas = fichas[0]['semaforo'], fichas[0]['maquinas_excluidas']
-    if semaforo == 'rojo':
+    if semaforo == 'rojo' or fichas[0].get('bloqueado'):   # rojo o bloqueado: nunca hay rutina hasta que el coach libere
         return {'rutinaId': None, 'semaforo': 'rojo', 'dias': [], 'estado': 'requiere_apto_medico',
                 'alertas': ['Semáforo rojo: presentar apto médico antes de entrenar. Se avisó al coach.']}
 

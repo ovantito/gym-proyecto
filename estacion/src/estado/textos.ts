@@ -27,6 +27,7 @@ export const ANIMOS = [
 
 /** Convierte el motivo técnico del backend en palabras simples. */
 export function motivoSimple(motivo: string): string {
+  if (motivo.startsWith('Bloqueado')) return 'Un coach debe liberarte antes de entrenar.'
   if (motivo.startsWith('Presión')) return 'Tu presión está alta hoy.'
   if (motivo.startsWith('Pulso')) return 'Tu pulso en reposo está muy acelerado.'
   if (motivo.startsWith('PAR-Q+ con respuesta crítica')) return 'Una de tus respuestas sobre el corazón o el pecho necesita revisión médica.'
@@ -46,3 +47,5 @@ export const SUBTITULO_SEMAFORO: Record<Semaforo, string> = {
   amarillo: 'Tu coach revisará tu rutina.',
   rojo: 'Por tu seguridad, hoy no puedes entrenar. Habla con el personal.',
 }
+
+export const MENSAJE_BLOQUEADO = 'Tu semáforo sigue en rojo. Acércate al coach para que te evalúe y te libere.'

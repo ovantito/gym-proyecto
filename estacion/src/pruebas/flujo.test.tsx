@@ -333,4 +333,20 @@ describe('ficha de salud persistente', () => {
     expect(await screen.findByText(/No se puede quitar una condición ya registrada/)).toBeInTheDocument()
     expect(screen.getByText('¿Sigues igual que la última vez?')).toBeInTheDocument()
   })
+
+  it('rojo y bloqueado: pide acercarse al coach y no da rutina', async () => {
+    const l = instalarBackend({
+      ficha: { semaforo: 'rojo', motivos: ['Presión sistólica 120 ≥ 160', 'Bloqueado: requiere liberación del coach'], requiereAptoMedico: true,
+        maquinasExcluidas: [], bloqueado: true },
+    })
+    const u = nuevo()
+    render(<App />)
+    await hastaSalud(u)
+    await u.click(await screen.findByRole('button', { name: 'Ver mi semáforo' }))
+    expect(await screen.findByText('Tu semáforo sigue en rojo. Acércate al coach para que te evalúe y te libere.')).toBeInTheDocument()
+    expect(screen.getByText('• Un coach debe liberarte antes de entrenar.')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Ver mi rutina' })).not.toBeInTheDocument()
+    expect(l.some((x) => x.includes('generar'))).toBe(false)
+  })
 })
+

@@ -26,6 +26,8 @@ export interface FichaOut {
   motivos: string[]
   requiereAptoMedico: boolean
   maquinasExcluidas: string[]
+  /** rojo: bloqueado hasta que un coach lo libere */
+  bloqueado?: boolean
 }
 
 /** GET /v1/socios/{id}/ficha-salud  (salud.py). `existe: false` si el socio aún no tiene ficha. */

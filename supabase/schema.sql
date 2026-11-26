@@ -62,6 +62,8 @@ create table if not exists public.fichas_salud (
   semaforo text not null check (semaforo in ('verde','amarillo','rojo')),
   motivos jsonb not null default '[]', maquinas_excluidas jsonb not null default '[]',
   requiere_apto_medico boolean not null default false,
+  bloqueado boolean not null default false,          -- rojo: bloqueado hasta que un coach/admin lo libere (migración 0004)
+  bloqueado_desde timestamptz,
   actualizada timestamptz not null default now()
 );
 
