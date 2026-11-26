@@ -64,7 +64,8 @@ def _login_supabase(cfg, datos: LoginIn):
         raise HTTPException(503, 'Falta SUPABASE_PUBLISHABLE_KEY en el servidor')
     try:
         r = httpx.post(f'{cfg.supabase_url.rstrip("/")}/auth/v1/token', params={'grant_type': 'password'},
-                       headers={'apikey': cfg.supabase_publishable_key}, json={'email': datos.email, 'password': datos.password}, timeout=15)
+                       headers={'apikey': cfg.supabase_publishable_key},
+                       json={'email': datos.email, 'password': datos.password}, timeout=15)
     except httpx.HTTPError as e:
         raise HTTPException(503, 'No se pudo contactar a Supabase Auth') from e
     if r.status_code != 200:
