@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import * as api from '../api/cliente'
-import type { CambioFicha, FichaSocioOut, Lesion } from '../api/cliente'
+import type { CambioFicha, FichaSocioOut, Lesion, MedicionSocio } from '../api/cliente'
 import { Boton, Etiqueta, motivoSimple, Tarjeta, Titulo } from '../componentes/ui'
 
 const LESIONES: { id: Lesion; texto: string }[] = [
@@ -91,8 +91,37 @@ export function Fichas() {
   )
 }
 
+/** Categoría OMS del IMC. */
+const categoriaImc = (imc: number) => (imc < 18.5 ? 'bajo peso' : imc < 25 ? 'normal' : imc < 30 ? 'sobrepeso' : 'obesidad')
+
+function UltimaMedicion({ m }: { m: MedicionSocio | null | undefined }) {
+  if (!m) return <Tarjeta className="text-suave">Este socio aún no tiene mediciones válidas en la estación.</Tarjeta>
+  const dato = (etiqueta: string, valor: string | null) => (
+    <div>
+      <p className="text-[13px] text-suave">{etiqueta}</p>
+      <p className="text-[20px] font-bold">{valor ?? '—'}</p>
+    </div>
+  )
+  return (
+    <Tarjeta>
+      <div className="flex items-baseline justify-between">
+        <h3 className="text-[18px] font-bold">Última medición</h3>
+        <span className="text-[13px] text-suave">{fecha(m.fecha)}</span>
+      </div>
+      <div className="mt-3 grid grid-cols-3 gap-4">
+        {dato('Peso', m.pesoKg != null ? `${m.pesoKg} kg` : null)}
+        {dato('Talla', m.tallaCm != null ? `${m.tallaCm} cm` : null)}
+        {dato('IMC', m.imc != null ? `${m.imc.toFixed(1)} · ${categoriaImc(m.imc)}` : null)}
+        {dato('Grasa', m.grasaPct != null ? `${m.grasaPct} %` : null)}
+        {dato('Presión', m.sistolica != null && m.diastolica != null ? `${m.sistolica}/${m.diastolica} mmHg` : null)}
+        {dato('Pulso', m.pulso != null ? `${m.pulso} lpm` : null)}
+      </div>
+    </Tarjeta>
+  )
+}
+
 function Detalle({ datos, alCambiar }: { datos: FichaSocioOut; alCambiar: (d: FichaSocioOut) => void }) {
-  const { socio, ficha, historial } = datos
+  const { socio, ficha, historial, medicion } = datos
   const [parq, setParq] = useState<boolean[]>(ficha?.parq ?? [])
   const [lesiones, setLesiones] = useState<api.Lesion[]>(ficha?.lesiones ?? [])
   const [motivo, setMotivo] = useState('')
@@ -140,6 +169,8 @@ function Detalle({ datos, alCambiar }: { datos: FichaSocioOut; alCambiar: (d: Fi
           </ul>
         )}
       </Tarjeta>
+
+      <UltimaMedicion m={medicion} />
 
       {!ficha ? (
         <Tarjeta className="text-suave">Este socio aún no llenó su ficha de salud en la estación.</Tarjeta>

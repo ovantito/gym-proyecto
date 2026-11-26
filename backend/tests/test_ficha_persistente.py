@@ -136,3 +136,15 @@ def test_busqueda_por_dni_valida_el_formato_y_exige_rol(client, est_headers, coa
     assert client.get('/v1/coach/fichas?dni=99999999', headers=coach0).status_code == 404
     assert client.get('/v1/coach/fichas?dni=10000000', headers=est_headers).status_code == 403   # la estación no entra al panel
     assert client.get('/v1/coach/fichas?dni=10000000').status_code == 401
+
+
+def test_panel_muestra_la_ultima_medicion_con_talla_e_imc(client, est_headers, abrir_sesion, app, coach0):
+    i = _socio_de(app, COACHES[0], 270)
+    sid = abrir_sesion(i)
+    dni = _dni(app, sid)
+    assert client.get(f'/v1/coach/fichas?dni={dni}', headers=coach0).json()['medicion'] is None   # aún sin mediciones
+    med = {**MED_OK, 'peso_kg': 72.3, 'talla_cm': 170}
+    assert client.post(f'/v1/socios/{sid}/mediciones', json=med, headers=est_headers).status_code == 201
+    m = client.get(f'/v1/coach/fichas?dni={dni}', headers=coach0).json()['medicion']
+    assert m['imc'] == 25.0 and m['tallaCm'] == 170 and m['pesoKg'] == 72.3
+    assert (m['sistolica'], m['diastolica'], m['pulso']) == (120, 78, 68) and m['fecha']

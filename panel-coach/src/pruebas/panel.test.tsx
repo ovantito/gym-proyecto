@@ -11,6 +11,7 @@ const RUTINA = {
   creada: '2026-11-26T15:00:00+00:00', socioNombre: 'Socio 0011', motivos: ['Lesión declarada: rodilla'], maquinasExcluidas: ['M-02', 'M-03'],
   dias: [{ ejercicios: [{ id: 'E-M-17', nombre: 'Plancha en banco', maquina: 'M-17', series: 2, repeticiones: 10, descansoSeg: 90 }] }],
 }
+const MEDICION = { pesoKg: 72.3, tallaCm: 170, imc: 25.0, grasaPct: 22, sistolica: 120, diastolica: 78, pulso: 68, fecha: '2026-11-26T15:00:00+00:00' }
 const PARQ_NO = [false, false, false, false, false, false, false]
 const SOCIO = (n: string, p: number) => ({
   id: n, nombre: n, probabilidad: p, nivel: p > 0.6 ? 'alto' : 'bajo', segmento: 'nocturno_nuevo', alertaId: p > 0.6 ? `a-${n}` : null,
@@ -29,7 +30,7 @@ function instalar(o: Opciones = {}) {
   let fichaActual: Record<string, unknown> = { parq: PARQ_NO, lesiones: ['rodilla'], semaforo: 'amarillo', motivos: ['Lesión declarada: rodilla'],
     requiereAptoMedico: false, maquinasExcluidas: ['M-02', 'M-03'], actualizada: '2026-11-25T10:00:00+00:00' }
   let historial: unknown[] = []
-  const vistaFicha = () => ({ socio: { id: 's-9', nombre: 'Socio 0009', dni: '12345678', semaforo: fichaActual.semaforo }, ficha: fichaActual, historial })
+  const vistaFicha = () => ({ socio: { id: 's-9', nombre: 'Socio 0009', dni: '12345678', semaforo: fichaActual.semaforo }, ficha: fichaActual, historial, medicion: MEDICION })
   vi.stubGlobal('fetch', vi.fn(async (url: string, init: RequestInit = {}) => {
     const ruta = url.replace(/^.*\/v1/, '')
     const metodo = init.method ?? 'GET'
@@ -215,5 +216,21 @@ describe('fichas de salud', () => {
     await u.type(screen.getByLabelText('DNI del socio'), '99999999')
     await u.click(screen.getByRole('button', { name: 'Buscar' }))
     expect(await screen.findByRole('alert')).toHaveTextContent('No encontramos ese DNI entre tus socios')
+  })
+})
+
+describe('última medición en Fichas de salud', () => {
+  it('muestra Talla e IMC con su categoría', async () => {
+    instalar()
+    const u = userEvent.setup()
+    render(<App />)
+    await entrar(u)
+    await u.click(await screen.findByRole('button', { name: 'Fichas de salud' }))
+    await u.type(screen.getByLabelText('DNI del socio'), '12345678')
+    await u.click(screen.getByRole('button', { name: 'Buscar' }))
+    await screen.findByText('Última medición')
+    expect(screen.getByText('170 cm')).toBeInTheDocument()
+    expect(screen.getByText('25.0 · sobrepeso')).toBeInTheDocument()
+    expect(screen.getByText('120/78 mmHg')).toBeInTheDocument()
   })
 })

@@ -128,10 +128,23 @@ export interface CambioFicha {
   cambio: { antes: EstadoFicha; despues: EstadoFicha }
 }
 
+/** Última medición válida del socio. tallaCm e imc son null en lecturas anteriores a la talla. */
+export interface MedicionSocio {
+  pesoKg: number
+  tallaCm: number | null
+  imc: number | null
+  grasaPct: number
+  sistolica: number
+  diastolica: number
+  pulso: number
+  fecha: string
+}
+
 /** GET /v1/coach/fichas?dni=…  y  PUT /v1/coach/fichas/{socioId} */
 export interface FichaSocioOut {
   socio: { id: string; nombre: string; dni: string | null; semaforo: Semaforo }
   ficha: FichaSalud | null
+  medicion?: MedicionSocio | null
   historial: CambioFicha[]
 }
 
