@@ -41,7 +41,7 @@ Solo los **dominios del frontend** listados en `CORS_ORIGINS` pueden llamar a la
 
 ## 8. Ninguna clave en el código
 Todo secreto (Supabase, JWT, Cloudflare R2) está en variables de entorno / `.env`. `.env` está en `.gitignore`; solo se sube
-`.env.example` sin valores. La **service key** de Supabase solo vive en el servidor; jamás en el frontend. Si una clave se filtra se rota
+`.env.example` sin valores. La **secret key** de Supabase (`sb_secret_...`) solo vive en `backend/.env` y en las variables de entorno de Render; jamás en un frontend (estación o panel). La **publishable key** (`sb_publishable_...`) es pública por diseño y solo sirve para el login contra Supabase Auth. Si una clave se filtra se rota
 en Supabase/Cloudflare y se cambia la variable, sin tocar código.
 
 ## 9. Videos (Cloudflare R2)
@@ -70,6 +70,15 @@ El QR del ticket nunca contiene una URL firmada, así que no caduca ni filtra ac
 ## 14. Aprobación de rutinas
 Aprobar o rechazar exige ser el coach **dueño del socio** (o admin). La estación consulta el estado de la rutina (`GET /rutinas/{id}`) solo si tiene
 una sesión abierta con ese socio. Rechazar guarda el motivo, que se muestra en la estación.
+
+## 15. Claves de Supabase (nombres nuevos)
+- `SUPABASE_PUBLISHABLE_KEY` (`sb_publishable_...`): pública por diseño (equivale a la antigua *anon*). El backend solo la usa en el login del panel.
+- `SUPABASE_SECRET_KEY` (`sb_secret_...`): da acceso total a la base (equivale a *service_role*). Vive **solo** en `backend/.env` y en las variables de entorno de Render.
+  Las claves `sb_secret_` no son JWT, por eso el backend las manda solo en la cabecera `apikey`.
+- Hay una **prueba automática** que falla si `estacion/` o `panel-coach/` mencionan la secret key.
+- Los frontends no hablan con Supabase: solo con el backend (`VITE_API_URL`). No necesitan `VITE_SUPABASE_*`.
+- Si el proyecto usa las *JWT signing keys* nuevas (asimétricas), los tokens no se firman con un secreto HS256 y `SUPABASE_JWT_SECRET` no sirve para validarlos:
+  habría que verificar con las claves públicas (JWKS) en `decodificar_jwt`. Pendiente hasta probar con el proyecto real.
 
 ## Pendientes conocidos (fuera de esta fase)
 HTTPS lo pone el despliegue (proxy/hosting). Rotación automática de claves de estación y auditoría de accesos a fichas de salud

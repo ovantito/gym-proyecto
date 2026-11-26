@@ -73,7 +73,7 @@ porque ya no influye en el abandono simulado. (Con la versión vieja de los dato
   Se usó la **misma paleta y tipografía de la estación** (azul marino, naranja, Inter) con un layout propio de panel: barra lateral con las 5 secciones y contenido a la derecha.
   Conviene compararlo con el frame y ajustar si difiere.
 - **Login:** el backend ahora tiene `POST /v1/auth/login`. En demo firma él mismo el JWT (secreto efímero si no hay `SUPABASE_JWT_SECRET`); con Supabase delega en Supabase Auth
-  (necesita `SUPABASE_ANON_KEY`; esa rama **no se probó**). Usuarios demo: `coach@tnt.demo`, `coach2@tnt.demo` (para comprobar el aislamiento) y `admin@tnt.demo`.
+  (necesita `SUPABASE_PUBLISHABLE_KEY`; esa rama **no se probó**). Usuarios demo: `coach@tnt.demo`, `coach2@tnt.demo` (para comprobar el aislamiento) y `admin@tnt.demo`.
 - **"% de abandono" por perfil** = **riesgo medio predicho** (promedio de las probabilidades del Random Forest), porque el abandono real a 30 días aún no se conoce. Se muestra como "riesgo medio de abandono".
   Requiere haber corrido el análisis nocturno; antes de eso las secciones de riesgo y perfiles muestran un mensaje explicándolo.
 - **"Los 3 datos que más pesan":** son siempre días sin venir, visitas por semana y meses como socio. Cada uno se compara con la **mediana de todos los socios** (±15 %) para decir si sube,

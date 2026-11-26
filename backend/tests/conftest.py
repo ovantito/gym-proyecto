@@ -3,7 +3,7 @@ import time
 
 # Configuración de prueba ANTES de importar la app (no son claves reales).
 os.environ.update({
-    'SUPABASE_URL': '', 'SUPABASE_SERVICE_KEY': '',          # => repositorio en memoria
+    'SUPABASE_URL': '', 'SUPABASE_SECRET_KEY': '', 'SUPABASE_PUBLISHABLE_KEY': '',          # => repositorio en memoria
     'SUPABASE_JWT_SECRET': 'secreto-de-prueba-con-32-bytes-minimo!!',
     'DEMO_STATION_KEY': 'clave-de-prueba-estacion',
     'RATE_LIMIT_DEFECTO': '100000/minute', 'RATE_LIMIT_SESIONES': '100000/minute', 'RATE_LIMIT_LOGIN': '100000/minute',
