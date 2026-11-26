@@ -5,8 +5,11 @@ from __future__ import annotations
 import boto3
 from botocore.config import Config
 from fastapi import APIRouter, Depends, HTTPException, Path, Request
+from fastapi.responses import RedirectResponse
 
 from app.core import umbrales as u
+from app.core.config import get_settings
+from app.core.limites import limiter
 from app.core.repositorio import ahora
 from app.core.seguridad import Actor, autorizar_socio, requiere
 from app.modulos.prediccion import MES_REFERENCIA, hora_dia_actual
@@ -75,17 +78,38 @@ def generar_rutina(request: Request, socio_id: str, datos: RutinaIn | None = Non
             'detalle': {'algoritmo': algoritmo, 'tiempoPerdidoEstimadoMin': round(costo, 1), 'sociosEnSala': round(ocup)}}
 
 
-@router.get('/ejercicios/{ejercicio_id}/video')
-def video_ejercicio(request: Request, ejercicio_id: str = Path(pattern=r'^E-M-\d{2}$'),
-                    _: Actor = Depends(requiere('estacion', 'coach', 'admin', 'socio'))):
+def _url_firmada(c, ejercicio_id: str) -> str:
+    """URL firmada nueva (15 min) del video en Cloudflare R2. 404 si no existe el ejercicio, 503 si R2 no está configurado."""
     if ejercicio_id[2:] not in MAQUINAS.index:
         raise HTTPException(404, 'Ejercicio no encontrado')
-    c = request.app.state.settings
     if not all([c.r2_account_id, c.r2_access_key_id, c.r2_secret_access_key, c.r2_bucket]):
         raise HTTPException(503, 'Videos no configurados (faltan variables R2)')
     s3 = boto3.client('s3', endpoint_url=f'https://{c.r2_account_id}.r2.cloudflarestorage.com',
                       aws_access_key_id=c.r2_access_key_id, aws_secret_access_key=c.r2_secret_access_key,
                       region_name='auto', config=Config(signature_version='s3v4'))
-    url = s3.generate_presigned_url('get_object', ExpiresIn=u.VIDEO_URL_TTL_SEG,
-                                    Params={'Bucket': c.r2_bucket, 'Key': f'{c.r2_prefijo}{ejercicio_id}.mp4'})
-    return {'url': url, 'expiraEnSeg': u.VIDEO_URL_TTL_SEG}
+    return s3.generate_presigned_url('get_object', ExpiresIn=u.VIDEO_URL_TTL_SEG,
+                                     Params={'Bucket': c.r2_bucket, 'Key': f'{c.r2_prefijo}{ejercicio_id}.mp4'})
+
+
+@router.get('/ejercicios/{ejercicio_id}/video')
+def video_ejercicio(request: Request, ejercicio_id: str = Path(pattern=r'^E-M-\d{2}$'),
+                    _: Actor = Depends(requiere('estacion', 'coach', 'admin', 'socio'))):
+    return {'url': _url_firmada(request.app.state.settings, ejercicio_id), 'expiraEnSeg': u.VIDEO_URL_TTL_SEG}
+
+
+@router.get('/ejercicios/{ejercicio_id}/ver')
+@limiter.limit(lambda: get_settings().rate_limit_ver)
+def ver_video(request: Request, ejercicio_id: str = Path(pattern=r'^E-M-\d{2}$')):
+    """PÚBLICO y permanente: es el destino del QR del ticket. Genera una URL firmada nueva en cada visita y redirige (302).
+    Solo sirve videos de ejercicios (nada personal); por eso no pide credenciales, pero tiene límite de peticiones."""
+    return RedirectResponse(_url_firmada(request.app.state.settings, ejercicio_id), status_code=302)
+
+
+@router.get('/rutinas/{rutina_id}')
+def estado_rutina(request: Request, rutina_id: str, actor: Actor = Depends(requiere('estacion', 'coach', 'admin', 'socio'))):
+    """Estado de una rutina (la estación lo consulta cada 5 s mientras espera la aprobación del coach)."""
+    rutina = request.app.state.repo.get('rutinas', rutina_id)
+    if rutina is None:
+        raise HTTPException(404, 'Rutina no encontrada')
+    autorizar_socio(request, actor, rutina['socio_id'])
+    return {'rutinaId': rutina['id'], 'estado': rutina['estado'], 'motivoRechazo': rutina.get('motivo_rechazo')}

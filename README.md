@@ -131,3 +131,27 @@ npm run lint && npm run build
 Flujo: Identificación (DNI en teclado en pantalla) → Medición (báscula simulada; "lectura imposible" demuestra Mean-Shift) → Ficha de salud (PAR-Q+) →
 Semáforo (rojo termina aquí) → Rutina (A*, video por ejercicio) → Ticket de 80 mm con QR. A los 60 s sin tocar vuelve al inicio y borra los datos del socio.
 Todas las llamadas al backend están en `src/api/cliente.ts`.
+
+## Panel del coach (`panel-coach/`)
+
+React + Vite + TypeScript + Tailwind v4 + Recharts, para escritorio. Login con el JWT del backend; el coach ve solo a sus socios y el admin todo
+(y puede correr el análisis nocturno a mano).
+
+```bash
+cd panel-coach
+cp .env.example .env     # VITE_API_URL
+npm install
+npm run dev              # http://localhost:5174
+npm test && npm run lint && npm run build
+```
+
+Secciones: Rutinas por aprobar (aprobar / rechazar con motivo) · Riesgo de abandono (Random Forest, con los 3 datos que más pesan y "Registrar contacto") ·
+Perfiles de socio (K-Means) · Estaciones y mantenimiento (lecturas atípicas de Mean-Shift) · Modelo de IA (versión y métricas en palabras simples).
+
+**Usuarios de prueba:** en modo demo (sin Supabase) el backend crea `coach@tnt.demo`, `coach2@tnt.demo` y `admin@tnt.demo` y **imprime sus contraseñas al
+arrancar** (o define `DEMO_COACH_PASSWORD` / `DEMO_ADMIN_PASSWORD`). Con Supabase, el login usa Supabase Auth (requiere `SUPABASE_ANON_KEY`) y el rol va en
+`app_metadata.role`.
+
+Endpoints nuevos (prefijo `/v1`): `POST /auth/login`, `GET /coach/socios`, `GET /coach/perfiles`, `GET /coach/mantenimiento`, `GET /coach/modelo`,
+`POST /coach/alertas/{id}/atender`, `POST /coach/rutinas/{id}/rechazar`, `GET /rutinas/{id}` (la estación consulta si el coach aprobó) y
+`GET /ejercicios/{id}/ver` (público, redirige 302 a una URL firmada nueva: es lo que lleva el QR del ticket).

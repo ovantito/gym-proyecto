@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { obtenerVideo, type Ejercicio } from '../api/cliente'
 import { Boton } from '../componentes/Boton'
 import { Marco } from '../componentes/Marco'
@@ -8,13 +8,24 @@ type Video = { id: string; nombre: string; estado: 'cargando' | 'ok' | 'error'; 
 
 /** Pantalla 5: rutina ordenada por A*. Al tocar un ejercicio se pide su video firmado a R2. */
 export function Rutina() {
-  const { estado, irA } = useFlujo()
+  const { estado, irA, consultarRutina } = useFlujo()
   const [video, setVideo] = useState<Video | null>(null)
   const rutina = estado.rutina
+  const pendiente = rutina?.estado === 'pendiente_aprobacion'
+
+  // Amarillo en vivo: mientras espera al coach consulta el estado cada 5 s.
+  // Se detiene solo al salir de la pantalla (o por inactividad, que reinicia todo) o al cambiar el estado.
+  useEffect(() => {
+    if (!pendiente) return
+    const t = setInterval(() => void consultarRutina(), 5000)
+    return () => clearInterval(t)
+  }, [pendiente, consultarRutina])
+
   if (!rutina) return null
   const ejercicios: Ejercicio[] = rutina.dias.flatMap((d) => d.ejercicios)
   const det = rutina.detalle
-  const pendiente = rutina.estado === 'pendiente_aprobacion'
+  const aprobada = rutina.semaforo === 'amarillo' && rutina.estado === 'activa'
+  const rechazada = rutina.estado === 'rechazada'
 
   const abrir = async (e: Ejercicio) => {
     setVideo({ id: e.id, nombre: e.nombre, estado: 'cargando' })
@@ -31,8 +42,22 @@ export function Rutina() {
       paso={4}
       pie={
         <>
-          {pendiente && <p className="flex-1 text-[20px] font-semibold text-sem-amarillo">Tu coach revisará y aprobará esta rutina.</p>}
-          <Boton className="ml-auto" onClick={() => irA('ticket')}>
+          {pendiente && (
+            <p className="flex-1 animate-pulse text-[20px] font-semibold text-sem-amarillo" role="status">
+              Esperando la aprobación de tu coach…
+            </p>
+          )}
+          {aprobada && (
+            <p className="flex-1 text-[22px] font-bold text-sem-verde" role="status">
+              ✓ Tu coach aprobó tu rutina
+            </p>
+          )}
+          {rechazada && (
+            <p className="flex-1 text-[22px] font-bold text-sem-rojo" role="alert">
+              Acércate a tu coach{estado.motivoRechazo ? ` · “${estado.motivoRechazo}”` : ''}
+            </p>
+          )}
+          <Boton className="ml-auto" disabled={pendiente || rechazada} onClick={() => irA('ticket')}>
             Imprimir mi ticket
           </Boton>
         </>
@@ -42,7 +67,7 @@ export function Rutina() {
         <div className="flex min-h-0 flex-col">
           <h1 className="text-[38px] font-extrabold">Tu rutina de hoy</h1>
           <p className="text-[20px] text-suave">
-            {ejercicios.length} ejercicios · {pendiente ? 'pendiente de aprobación del coach' : 'lista para empezar'}
+            {ejercicios.length} ejercicios · {pendiente ? 'pendiente de aprobación del coach' : rechazada ? 'no aprobada' : 'lista para empezar'}
           </p>
           <ol className="mt-3 flex-1 space-y-1.5 overflow-y-auto pr-1">
             {ejercicios.map((e) => (

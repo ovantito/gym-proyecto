@@ -24,12 +24,15 @@ const RUTINA: RutinaOut = {
 }
 
 /** Backend simulado. `ficha`, `medicion` y `video` se pueden cambiar por prueba. */
-function instalarBackend(o: { ficha?: FichaOut; atipica?: boolean; video?: 'ok' | 'error' } = {}) {
+function instalarBackend(o: { ficha?: FichaOut; atipica?: boolean; video?: 'ok' | 'error'; amarilla?: boolean } = {}) {
   const llamadas: string[] = []
+  const bodies: Record<string, unknown>[] = []
+  const remoto = { estado: 'pendiente_aprobacion', motivoRechazo: null as string | null } // lo que "decide" el coach
   const ficha = o.ficha ?? { semaforo: 'verde', motivos: [], requiereAptoMedico: false, maquinasExcluidas: [] }
   const m: Manejador = (url, init) => {
     const metodo = init.method ?? 'GET'
     llamadas.push(`${metodo} ${url.replace(/^.*\/v1/, '')}`)
+    if (typeof init.body === 'string') bodies.push(JSON.parse(init.body))
     if (/\/sesiones$/.test(url)) return ok({ sesionId: 's-1', socio: { id: 'socio-1', nombre: 'Carla Pérez', semaforo: 'verde' } }, 201)
     if (/\/mediciones$/.test(url))
       return ok(
@@ -39,14 +42,16 @@ function instalarBackend(o: { ficha?: FichaOut; atipica?: boolean; video?: 'ok' 
         201,
       )
     if (/\/ficha-salud$/.test(url)) return ok(ficha)
-    if (/\/rutinas\/generar$/.test(url)) return ok(RUTINA, 201)
+    if (/\/rutinas\/generar$/.test(url))
+      return ok(o.amarilla ? { ...RUTINA, semaforo: 'amarillo', estado: 'pendiente_aprobacion' } : RUTINA, 201)
+    if (/\/rutinas\/r-1$/.test(url)) return ok({ rutinaId: 'r-1', ...remoto })
     if (/\/prediccion\/espera/.test(url)) return ok({ hora: 19, dia: 0, sociosEnSala: 59, esperaMin: { 'M-17': 0.2, 'M-01': 6.8 } })
     if (/\/video$/.test(url))
       return o.video === 'error' ? ok({ detail: 'Videos no configurados' }, 503) : ok({ url: 'https://r2.example/video.mp4?firma=abc', expiraEnSeg: 900 })
     return ok({ detail: 'no encontrado' }, 404)
   }
   vi.stubGlobal('fetch', vi.fn(async (url: string, init: RequestInit = {}) => m(url, init)))
-  return llamadas
+  return Object.assign(llamadas, { bodies, remoto })
 }
 
 async function escribirDni(u: ReturnType<typeof userEvent.setup>) {
@@ -173,5 +178,76 @@ describe('flujo de la estación', () => {
     })
     expect(await screen.findByText('Acerca tu DNI o QR')).toBeInTheDocument()
     expect(screen.queryByText(/Carla/)).not.toBeInTheDocument()
+  })
+})
+
+describe('amarillo en vivo y presión alta', () => {
+  const amarilla: FichaOut = { semaforo: 'amarillo', motivos: ['Lesión declarada: rodilla'], requiereAptoMedico: false, maquinasExcluidas: ['M-02', 'M-03'] }
+
+  async function hastaRutinaAmarilla(u: ReturnType<typeof nuevo>) {
+    await hastaSemaforo(u)
+    await u.click(await screen.findByRole('button', { name: 'Ver mi rutina' }))
+    await screen.findByText(/Orden optimizado/)
+  }
+  const consultas = (l: string[]) => l.filter((x) => x === 'GET /rutinas/r-1').length
+
+  it('consulta cada 5 s y, cuando el coach aprueba, cambia sola y habilita el ticket', async () => {
+    const l = instalarBackend({ ficha: amarilla, amarilla: true })
+    const u = nuevo()
+    render(<App />)
+    await hastaRutinaAmarilla(u)
+    expect(screen.getByText('Esperando la aprobación de tu coach…')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Imprimir mi ticket' })).toBeDisabled()
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(5000) })
+    expect(consultas(l)).toBe(1)
+    expect(screen.getByRole('button', { name: 'Imprimir mi ticket' })).toBeDisabled() // el coach aún no decide
+
+    l.remoto.estado = 'activa'
+    await act(async () => { await vi.advanceTimersByTimeAsync(5000) })
+    expect(await screen.findByText('✓ Tu coach aprobó tu rutina')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Imprimir mi ticket' })).toBeEnabled()
+
+    const n = consultas(l)
+    await act(async () => { await vi.advanceTimersByTimeAsync(20000) })
+    expect(consultas(l)).toBe(n) // ya no pregunta más
+  })
+
+  it('si el coach rechaza muestra "Acércate a tu coach" y no deja imprimir', async () => {
+    const l = instalarBackend({ ficha: amarilla, amarilla: true })
+    const u = nuevo()
+    render(<App />)
+    await hastaRutinaAmarilla(u)
+    l.remoto.estado = 'rechazada'
+    l.remoto.motivoRechazo = 'Carga muy alta'
+    await act(async () => { await vi.advanceTimersByTimeAsync(5000) })
+    expect(await screen.findByText(/Acércate a tu coach/)).toHaveTextContent('Carga muy alta')
+    expect(screen.getByRole('button', { name: 'Imprimir mi ticket' })).toBeDisabled()
+  })
+
+  it('deja de consultar al salir por inactividad', async () => {
+    const l = instalarBackend({ ficha: amarilla, amarilla: true })
+    const u = nuevo()
+    render(<App />)
+    await hastaRutinaAmarilla(u)
+    await act(async () => { await vi.advanceTimersByTimeAsync(5000) })
+    expect(consultas(l)).toBe(1)
+    await act(async () => { await vi.advanceTimersByTimeAsync(60_000) }) // inactividad: vuelve al inicio
+    expect(await screen.findByText('Acércate a tu coach').catch(() => null)).toBeNull()
+    expect(screen.getByText('Acerca tu DNI o QR')).toBeInTheDocument()
+    const n = consultas(l)
+    await act(async () => { await vi.advanceTimersByTimeAsync(30_000) })
+    expect(consultas(l)).toBe(n)
+  })
+
+  it('"Simular presión alta" envía 165/102', async () => {
+    const l = instalarBackend()
+    const u = nuevo()
+    render(<App />)
+    await escribirDni(u)
+    await screen.findByText(/Hola, Carla Pérez/)
+    await u.click(screen.getByRole('button', { name: 'Simular presión alta' }))
+    expect(await screen.findByText(/165 \/ 102/)).toBeInTheDocument()
+    expect(l.bodies.find((b) => b.presion_sistolica === 165)).toMatchObject({ presion_diastolica: 102 })
   })
 })
